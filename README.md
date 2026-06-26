@@ -52,6 +52,14 @@ The app is written to:
 dist/ArcanaCHM.app
 ```
 
+> **Note**: The app is unsigned. On macOS 14+, Gatekeeper may show "ArcanaCHM is damaged and can't be opened" when launching from a downloaded DMG. This is a misleading macOS message for unsigned apps — the app is not actually damaged. To fix, remove the quarantine flag:
+>
+> ```bash
+> xattr -dr com.apple.quarantine /Applications/ArcanaCHM.app
+> ```
+>
+> Or right-click the app in Finder and select **Open** to bypass Gatekeeper once.
+
 ## Use
 
 - `Command-O`: import a CHM file.

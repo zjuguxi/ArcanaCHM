@@ -36,7 +36,7 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <key>CFBundleIconFile</key>
   <string>AppIcon</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.0.1</string>
+  <string>1.0.2</string>
   <key>CFBundleVersion</key>
   <string>1</string>
   <key>LSMinimumSystemVersion</key>
@@ -44,9 +44,12 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <key>NSHighResolutionCapable</key>
   <true/>
   <key>NSHumanReadableCopyright</key>
-  <string>Local personal build</string>
+  <string>MIT License</string>
 </dict>
 </plist>
 PLIST
+
+# Ad-hoc sign to prevent "damaged" alert on macOS 14+
+codesign --force --deep --sign - "$APP_DIR" 2>/dev/null || true
 
 echo "$APP_DIR"
