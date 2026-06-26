@@ -25,5 +25,6 @@ jobs:
         with:
           artifacts: dist/ArcanaCHM-*.dmg
           artifactContentType: application/x-apple-diskimage
+          allowUpdates: true
           omitBodyDuringUpdate: true
           omitPrereleaseDuringUpdate: true
