@@ -161,14 +161,6 @@ final class TOCParser {
         return SecurityPolicy.isDescendant(url, of: rootURL)
     }
 
-    private func matches(pattern: String, in text: String) -> [String] {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return [] }
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        return regex.matches(in: text, range: range).compactMap { match in
-            guard let swiftRange = Range(match.range, in: text) else { return nil }
-            return String(text[swiftRange])
-        }
-    }
 }
 
 private enum HHCToken {
