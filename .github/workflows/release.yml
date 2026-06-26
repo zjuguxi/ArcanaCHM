@@ -1,0 +1,23 @@
+name: Build Release DMG
+on:
+  push:
+    tags: 'v*'
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift build -c release
+      - run: Scripts/package_app.sh
+      - name: Create DMG
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          hdiutil create -volname "ArcanaCHM $VERSION" \
+            -srcfolder dist/ArcanaCHM.app \
+            -ov -format UDZO \
+            "dist/ArcanaCHM-$VERSION.dmg"
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/ArcanaCHM-*.dmg
+          generate_release_notes: true
