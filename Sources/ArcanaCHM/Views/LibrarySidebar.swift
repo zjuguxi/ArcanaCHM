@@ -62,10 +62,13 @@ struct LibrarySidebar: View {
             .listStyle(.sidebar)
             .overlay {
                 if library.books.isEmpty {
-                    ContentUnavailableView {
-                        Label("没有文档", systemImage: "books.vertical")
-                    } description: {
-                        Text("使用左上角 + 按钮导入 CHM 文件或已解包目录。")
+                    VStack(spacing: 8) {
+                        Image(systemName: "books.vertical")
+                            .font(.title2)
+                            .foregroundStyle(.tertiary)
+                        Text("暂无文档")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }

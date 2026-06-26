@@ -81,11 +81,37 @@ struct ReferenceSidebar: View {
                         TOCView(items: book.toc, expandedItems: $expandedTOCItems)
                     }
                 } else {
-                    ContentUnavailableView("导入 CHM 文档", systemImage: "book.closed")
+                    switch selectedTab {
+                    case "search":
+                        SearchResultsView(
+                            query: searchText,
+                            hits: searchHits,
+                            history: searchHistory,
+                            runHistoricalSearch: runHistoricalSearch
+                        )
+                    case "favorites":
+                        emptyFavoritesView
+                    default:
+                        TOCView(items: [], expandedItems: $expandedTOCItems)
+                    }
                 }
             }
         }
         .background(Color(nsColor: .textBackgroundColor))
+    }
+
+    private var emptyFavoritesView: some View {
+        List {
+            HStack(spacing: 8) {
+                Image(systemName: "bookmark")
+                    .foregroundStyle(.secondary)
+                Text("请先导入 CHM 文档")
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(.vertical, 5)
+        }
+        .listStyle(.inset)
     }
 
     private var tabSelection: Binding<String> {

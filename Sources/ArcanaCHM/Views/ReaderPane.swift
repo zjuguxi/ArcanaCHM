@@ -35,16 +35,28 @@ struct ReaderPane: View {
                         }
                     )
                 } else {
-                    ContentUnavailableView {
-                        Label("ArcanaCHM", systemImage: "book.pages")
-                    } description: {
-                        Text("导入 CHM 文档后开始阅读。")
-                    } actions: {
+                    VStack(spacing: 0) {
+                        Spacer()
+                        Image(systemName: "book.pages")
+                            .font(.system(size: 42))
+                            .foregroundStyle(.tertiary)
+                            .padding(.bottom, 16)
+                        Text("ArcanaCHM")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        Text("导入 CHM 文档后开始阅读")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .padding(.bottom, 24)
                         Button("导入 CHM") {
                             library.importCHMWithPanel()
                         }
-                        .help("导入 CHM 文件")
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.teal)
+                        .controlSize(.large)
+                        Spacer()
                     }
+                    .frame(maxWidth: .infinity)
                 }
             }
             .background(Color(nsColor: .textBackgroundColor))
