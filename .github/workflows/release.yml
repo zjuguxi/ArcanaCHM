@@ -24,5 +24,6 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           artifacts: dist/ArcanaCHM-*.dmg
-          generateReleaseNotes: true
-          makeLatest: true
+          artifactContentType: application/x-apple-diskimage
+          omitBodyDuringUpdate: true
+          omitPrereleaseDuringUpdate: true
