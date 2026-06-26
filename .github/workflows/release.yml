@@ -3,6 +3,9 @@ on:
   push:
     tags: 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-14
@@ -17,7 +20,9 @@ jobs:
             -srcfolder dist/ArcanaCHM.app \
             -ov -format UDZO \
             "dist/ArcanaCHM-$VERSION.dmg"
-      - uses: softprops/action-gh-release@v2
+      - name: Upload Release Asset
+        uses: ncipollo/release-action@v1
         with:
-          files: dist/ArcanaCHM-*.dmg
-          generate_release_notes: true
+          artifacts: dist/ArcanaCHM-*.dmg
+          generateReleaseNotes: true
+          makeLatest: true
