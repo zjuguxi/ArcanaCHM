@@ -22,61 +22,52 @@ struct LibrarySidebar: View {
             }
             .padding()
 
-            if library.books.isEmpty {
-                ContentUnavailableView {
-                    Label("没有文档", systemImage: "books.vertical")
-                } description: {
-                    Text("导入 CHM 文件或已解包目录。")
-                } actions: {
-                    Button("导入 CHM") {
-                        library.importCHMWithPanel()
+            List(selection: $library.selectedBookID) {
+                ForEach(library.books) { book in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            if book.isPinned == true {
+                                Image(systemName: "pin.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.teal)
+                            }
+                            Text(book.title)
+                                .font(.system(size: 14, weight: .semibold))
+                                .lineLimit(2)
+                        }
+                        HStack(spacing: 8) {
+                            Label("\(book.bookmarks.count)", systemImage: "bookmark")
+                            Label("\(book.notes.count)", systemImage: "note.text")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     }
-                    .help("导入 CHM 文件")
-                    Button("打开目录") {
-                        library.importFolderWithPanel()
+                    .padding(.vertical, 6)
+                    .help("打开文档：\(book.title)")
+                    .contextMenu {
+                        Button {
+                            library.togglePin(book)
+                        } label: {
+                            Label(book.isPinned == true ? "取消置顶" : "置顶", systemImage: book.isPinned == true ? "pin.slash" : "pin")
+                        }
+                        Button(role: .destructive) {
+                            pendingDeleteBook = book
+                        } label: {
+                            Label("删除", systemImage: "trash")
+                        }
                     }
-                    .help("导入已解包目录")
+                    .tag(book.id)
                 }
-                .padding()
-            } else {
-                List(selection: $library.selectedBookID) {
-                    ForEach(library.books) { book in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 6) {
-                                if book.isPinned == true {
-                                    Image(systemName: "pin.fill")
-                                        .font(.caption)
-                                        .foregroundStyle(.teal)
-                                }
-                                Text(book.title)
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .lineLimit(2)
-                            }
-                            HStack(spacing: 8) {
-                                Label("\(book.bookmarks.count)", systemImage: "bookmark")
-                                Label("\(book.notes.count)", systemImage: "note.text")
-                            }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 6)
-                        .help("打开文档：\(book.title)")
-                        .contextMenu {
-                            Button {
-                                library.togglePin(book)
-                            } label: {
-                                Label(book.isPinned == true ? "取消置顶" : "置顶", systemImage: book.isPinned == true ? "pin.slash" : "pin")
-                            }
-                            Button(role: .destructive) {
-                                pendingDeleteBook = book
-                            } label: {
-                                Label("删除", systemImage: "trash")
-                            }
-                        }
-                        .tag(book.id)
+            }
+            .listStyle(.sidebar)
+            .overlay {
+                if library.books.isEmpty {
+                    ContentUnavailableView {
+                        Label("没有文档", systemImage: "books.vertical")
+                    } description: {
+                        Text("使用左上角 + 按钮导入 CHM 文件或已解包目录。")
                     }
                 }
-                .listStyle(.sidebar)
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
