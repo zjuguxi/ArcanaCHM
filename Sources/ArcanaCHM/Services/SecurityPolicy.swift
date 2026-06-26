@@ -1,0 +1,61 @@
+import Foundation
+
+enum SecurityPolicy {
+    static let readableExtensions: Set<String> = ["html", "htm", "xhtml"]
+
+    static func safeRelativePath(_ rawPath: String?) -> String? {
+        guard var path = rawPath?.trimmingCharacters(in: .whitespacesAndNewlines), !path.isEmpty else {
+            return nil
+        }
+
+        path = path.replacingOccurrences(of: "\\", with: "/")
+        if let hash = path.firstIndex(of: "#") {
+            path = String(path[..<hash])
+        }
+        if let query = path.firstIndex(of: "?") {
+            path = String(path[..<query])
+        }
+        path = path.removingPercentEncoding ?? path
+        path = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+
+        guard !path.isEmpty,
+              !path.hasPrefix("~"),
+              !path.hasPrefix("/"),
+              URL(string: path)?.scheme == nil
+        else {
+            return nil
+        }
+
+        let parts = path.split(separator: "/", omittingEmptySubsequences: true)
+        guard !parts.contains(".."), !parts.contains(".") else {
+            return nil
+        }
+
+        return parts.joined(separator: "/")
+    }
+
+    static func safeFileURL(rootURL: URL, relativePath: String?) -> URL? {
+        guard let relativePath = safeRelativePath(relativePath) else { return nil }
+        let root = rootURL.standardizedFileURL.resolvingSymlinksInPath()
+        let candidate = root.appendingPathComponent(relativePath).standardizedFileURL.resolvingSymlinksInPath()
+        guard isDescendant(candidate, of: root) else { return nil }
+        return candidate
+    }
+
+    static func relativePath(for fileURL: URL, rootURL: URL) -> String? {
+        let root = rootURL.standardizedFileURL.resolvingSymlinksInPath().path
+        let path = fileURL.standardizedFileURL.resolvingSymlinksInPath().path
+        guard path == root || path.hasPrefix(root + "/") else { return nil }
+        return String(path.dropFirst(root.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
+
+    static func isDescendant(_ url: URL, of rootURL: URL) -> Bool {
+        let root = rootURL.standardizedFileURL.resolvingSymlinksInPath().path
+        let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+        return path == root || path.hasPrefix(root + "/")
+    }
+
+    static func isInsideAppBooks(_ url: URL) -> Bool {
+        isDescendant(url, of: AppPaths.booksDirectory)
+    }
+}
