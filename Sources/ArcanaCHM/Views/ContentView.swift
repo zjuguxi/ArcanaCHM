@@ -37,7 +37,8 @@ struct ContentView: View {
                 selectedTab: $selectedTab,
                 searchHistory: searchHistory,
                 runSearch: runSearch,
-                runHistoricalSearch: runHistoricalSearch
+                runHistoricalSearch: runHistoricalSearch,
+                deleteHistoryItem: deleteHistoryItem
             )
             .navigationSplitViewColumnWidth(min: 300, ideal: 360)
         } detail: {
@@ -106,5 +107,9 @@ struct ContentView: View {
         var history = searchHistory.filter { $0.localizedCaseInsensitiveCompare(query) != .orderedSame }
         history.insert(query, at: 0)
         searchHistory = history
+    }
+
+    private func deleteHistoryItem(_ query: String) {
+        searchHistory = searchHistory.filter { $0 != query }
     }
 }

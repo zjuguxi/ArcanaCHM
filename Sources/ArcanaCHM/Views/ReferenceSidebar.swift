@@ -11,6 +11,7 @@ struct ReferenceSidebar: View {
     let searchHistory: [String]
     var runSearch: () -> Void
     var runHistoricalSearch: (String) -> Void
+    var deleteHistoryItem: (String) -> Void
     @State private var expandedTOCItems: Set<UUID> = []
 
     var body: some View {
@@ -73,7 +74,8 @@ struct ReferenceSidebar: View {
                             query: searchText,
                             hits: searchHits,
                             history: searchHistory,
-                            runHistoricalSearch: runHistoricalSearch
+                            runHistoricalSearch: runHistoricalSearch,
+                            deleteHistoryItem: deleteHistoryItem
                         )
                     case "favorites":
                         FavoritesPanel(book: book)
@@ -87,7 +89,8 @@ struct ReferenceSidebar: View {
                             query: searchText,
                             hits: searchHits,
                             history: searchHistory,
-                            runHistoricalSearch: runHistoricalSearch
+                            runHistoricalSearch: runHistoricalSearch,
+                            deleteHistoryItem: deleteHistoryItem
                         )
                     case "favorites":
                         emptyFavoritesView
@@ -279,11 +282,12 @@ struct SearchResultsView: View {
     let hits: [SearchHit]
     let history: [String]
     var runHistoricalSearch: (String) -> Void
+    var deleteHistoryItem: (String) -> Void
 
     var body: some View {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.count < 2 {
-            SearchHistoryView(history: history, runHistoricalSearch: runHistoricalSearch)
+            SearchHistoryView(history: history, runHistoricalSearch: runHistoricalSearch, deleteHistoryItem: deleteHistoryItem)
         } else if hits.isEmpty {
             ContentUnavailableView("没有结果", systemImage: "magnifyingglass")
         } else {
@@ -327,6 +331,7 @@ struct SearchResultsView: View {
 struct SearchHistoryView: View {
     let history: [String]
     var runHistoricalSearch: (String) -> Void
+    var deleteHistoryItem: (String) -> Void
 
     var body: some View {
         List {
@@ -343,20 +348,34 @@ struct SearchHistoryView: View {
                     .help("暂无搜索历史")
                 } else {
                     ForEach(history, id: \.self) { query in
-                        Button {
-                            runHistoricalSearch(query)
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "clock.arrow.circlepath")
-                                    .foregroundStyle(.secondary)
-                                Text(query)
-                                    .lineLimit(1)
-                                Spacer()
+                        HStack(spacing: 8) {
+                            Button {
+                                runHistoricalSearch(query)
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "clock.arrow.circlepath")
+                                        .foregroundStyle(.secondary)
+                                    Text(query)
+                                        .lineLimit(1)
+                                    Spacer()
+                                }
+                                .padding(.vertical, 5)
+                                .contentShape(Rectangle())
                             }
-                            .padding(.vertical, 5)
+                            .buttonStyle(.plain)
+                            .help("再次搜索：\(query)")
+
+                            Button {
+                                deleteHistoryItem(query)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("删除搜索记录")
+                            .opacity(0.7)
                         }
-                        .buttonStyle(.plain)
-                        .help("再次搜索：\(query)")
                     }
                 }
             }
