@@ -58,7 +58,7 @@ final class LibraryStore: ObservableObject {
 
     private func refreshImportedTOCs() {
         var changed = false
-        for index in books.indices {
+        for index in books.indices where books[index].toc.isEmpty {
             let parser = TOCParser(rootURL: books[index].rootURL)
             let toc = parser.parse()
             guard !toc.isEmpty else { continue }

@@ -14,6 +14,11 @@ let package = Package(
         .executableTarget(
             name: "ArcanaCHM",
             path: "Sources/ArcanaCHM"
+        ),
+        .testTarget(
+            name: "ArcanaCHMTests",
+            dependencies: ["ArcanaCHM"],
+            path: "Tests/ArcanaCHMTests"
         )
     ]
 )
