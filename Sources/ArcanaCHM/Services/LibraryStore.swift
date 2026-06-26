@@ -2,6 +2,13 @@ import AppKit
 import Foundation
 import SwiftUI
 
+private let currentSchemaVersion = 1
+
+struct LibraryFile: Codable {
+    var schemaVersion: Int
+    var books: [Book]
+}
+
 @MainActor
 final class LibraryStore: ObservableObject {
     @Published var books: [Book] = []
@@ -24,7 +31,11 @@ final class LibraryStore: ObservableObject {
                 return
             }
             let data = try Data(contentsOf: AppPaths.libraryFile)
-            books = try JSONDecoder.reader.decode([Book].self, from: data)
+            if let libraryFile = try? JSONDecoder.reader.decode(LibraryFile.self, from: data) {
+                books = libraryFile.books
+            } else {
+                books = try JSONDecoder.reader.decode([Book].self, from: data)
+            }
             books = books.filter { SecurityPolicy.isInsideAppBooks($0.rootURL) }
             refreshImportedTOCs()
             refreshContentFingerprints()
@@ -37,7 +48,8 @@ final class LibraryStore: ObservableObject {
     func save() {
         do {
             try AppPaths.ensure()
-            let data = try JSONEncoder.reader.encode(books)
+            let libraryFile = LibraryFile(schemaVersion: currentSchemaVersion, books: books)
+            let data = try JSONEncoder.reader.encode(libraryFile)
             try data.write(to: AppPaths.libraryFile, options: [.atomic])
         } catch {
             errorMessage = error.localizedDescription
