@@ -15,11 +15,8 @@ jobs:
       - run: Scripts/package_app.sh
       - name: Create DMG
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          hdiutil create -volname "ArcanaCHM $VERSION" \
-            -srcfolder dist/ArcanaCHM.app \
-            -ov -format UDZO \
-            "dist/ArcanaCHM-$VERSION.dmg"
+          chmod +x Scripts/package_dmg.sh
+          Scripts/package_dmg.sh "${GITHUB_REF_NAME#v}"
       - name: Upload Release Asset
         uses: ncipollo/release-action@v1
         with:
