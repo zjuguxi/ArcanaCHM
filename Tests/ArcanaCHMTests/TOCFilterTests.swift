@@ -1,95 +1,95 @@
-import Foundation
-import Testing
+import XCTest
 @testable import ArcanaCHM
 
-struct TOCFilterTests {
-    let root: TOCItem
-    let childA: TOCItem
-    let childB: TOCItem
-    let grandchild: TOCItem
+final class TOCFilterTests: XCTestCase {
+    var root: TOCItem!
+    var childA: TOCItem!
+    var childB: TOCItem!
+    var grandchild: TOCItem!
 
-    init() {
+    override func setUp() {
+        super.setUp()
         grandchild = TOCItem(id: UUID(), title: "Grandchild Topic", path: "grandchild.html", children: [])
         childA = TOCItem(id: UUID(), title: "Chapter Alpha", path: "alpha.html", children: [grandchild])
         childB = TOCItem(id: UUID(), title: "Chapter Beta", path: "beta.html", children: [])
         root = TOCItem(id: UUID(), title: "Root", path: nil, children: [childA, childB])
     }
 
-    @Test func emptyQueryReturnsAll() {
+    func testEmptyQueryReturnsAll() {
         let result = TOCView.filter(items: [root], query: "")
-        #expect(result.count == 1)
-        #expect(result[0].children.count == 2)
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].children.count, 2)
     }
 
-    @Test func whitespaceQueryReturnsAll() {
+    func testWhitespaceQueryReturnsAll() {
         let result = TOCView.filter(items: [root], query: "   ")
-        #expect(result.count == 1)
-        #expect(result[0].children.count == 2)
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].children.count, 2)
     }
 
-    @Test func unmatchedQueryReturnsEmpty() {
+    func testUnmatchedQueryReturnsEmpty() {
         let result = TOCView.filter(items: [root], query: "zzzzzz")
-        #expect(result.isEmpty)
+        XCTAssertTrue(result.isEmpty)
     }
 
-    @Test func matchesChildKeepsParentChain() {
+    func testMatchesChildKeepsParentChain() {
         let result = TOCView.filter(items: [root], query: "alpha")
-        #expect(result.count == 1)
-        #expect(result[0].title == "Root")
-        #expect(result[0].children.count == 1)
-        #expect(result[0].children[0].title == "Chapter Alpha")
-        #expect(result[0].children[0].children.count == 1)
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].title, "Root")
+        XCTAssertEqual(result[0].children.count, 1)
+        XCTAssertEqual(result[0].children[0].title, "Chapter Alpha")
+        XCTAssertEqual(result[0].children[0].children.count, 1)
     }
 
-    @Test func matchesGrandchildKeepsFullParentChain() {
+    func testMatchesGrandchildKeepsFullParentChain() {
         let result = TOCView.filter(items: [root], query: "grandchild")
-        #expect(result.count == 1)
-        #expect(result[0].title == "Root")
-        #expect(result[0].children.count == 1)
-        #expect(result[0].children[0].title == "Chapter Alpha")
-        #expect(result[0].children[0].children.count == 1)
-        #expect(result[0].children[0].children[0].title == "Grandchild Topic")
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].title, "Root")
+        XCTAssertEqual(result[0].children.count, 1)
+        XCTAssertEqual(result[0].children[0].title, "Chapter Alpha")
+        XCTAssertEqual(result[0].children[0].children.count, 1)
+        XCTAssertEqual(result[0].children[0].children[0].title, "Grandchild Topic")
     }
 
-    @Test func caseInsensitiveMatch() {
+    func testCaseInsensitiveMatch() {
         let result = TOCView.filter(items: [root], query: "ALPHA")
-        #expect(result.count == 1)
-        #expect(result[0].children.count == 1)
-        #expect(result[0].children[0].title == "Chapter Alpha")
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].children.count, 1)
+        XCTAssertEqual(result[0].children[0].title, "Chapter Alpha")
     }
 
-    @Test func partialMatch() {
+    func testPartialMatch() {
         let result = TOCView.filter(items: [root], query: "hap")
-        #expect(result.count == 1)
-        #expect(result[0].children[0].title == "Chapter Alpha")
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].children[0].title, "Chapter Alpha")
     }
 
-    @Test func multipleMatchesAllChildrenPreserved() {
+    func testMultipleMatchesAllChildrenPreserved() {
         let result = TOCView.filter(items: [root], query: "Chapter")
-        #expect(result.count == 1)
-        #expect(result[0].children.count == 2)
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].children.count, 2)
     }
 
-    @Test func whitespaceTrimmed() {
+    func testWhitespaceTrimmed() {
         let result = TOCView.filter(items: [root], query: "  Chapter  ")
-        #expect(result.count == 1)
-        #expect(result[0].children.count == 2)
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].children.count, 2)
     }
 
-    @Test func filterOnFlatList() {
-        let items = [childA, childB]
+    func testFilterOnFlatList() {
+        let items = [childA!, childB!]
         let result = TOCView.filter(items: items, query: "Beta")
-        #expect(result.count == 1)
-        #expect(result[0].title == "Chapter Beta")
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].title, "Chapter Beta")
     }
 
-    @Test func parentItselfMatchesKeepsAllChildren() {
+    func testParentItselfMatchesKeepsAllChildren() {
         let items = [TOCItem(id: UUID(), title: "Installation Guide", path: nil, children: [
             TOCItem(id: UUID(), title: "Windows", path: "win.html", children: []),
             TOCItem(id: UUID(), title: "macOS", path: "mac.html", children: []),
         ])]
         let result = TOCView.filter(items: items, query: "Installation")
-        #expect(result.count == 1)
-        #expect(result[0].children.count == 2)
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].children.count, 2)
     }
 }
