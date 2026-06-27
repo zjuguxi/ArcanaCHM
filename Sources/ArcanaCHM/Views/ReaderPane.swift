@@ -36,28 +36,7 @@ struct ReaderPane: View {
                         }
                     )
                 } else {
-                    VStack(spacing: 0) {
-                        Spacer()
-                        Image(systemName: "book.pages")
-                            .font(.system(size: 42))
-                            .foregroundStyle(.tertiary)
-                            .padding(.bottom, 16)
-                        Text("ArcanaCHM")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                        Text("reader_start_reading".loc)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .padding(.bottom, 24)
-                        Button("reader_import_chm".loc) {
-                            library.importCHMWithPanel()
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.teal)
-                        .controlSize(.large)
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity)
+                    Color.clear
                 }
             }
             .background(Color(nsColor: .textBackgroundColor))

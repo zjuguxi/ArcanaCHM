@@ -63,13 +63,24 @@ struct LibrarySidebar: View {
             .listStyle(.sidebar)
             .overlay {
                 if library.books.isEmpty {
-                    VStack(spacing: 8) {
-                        Image(systemName: "books.vertical")
-                            .font(.title2)
+                    VStack(spacing: 12) {
+                        Spacer()
+                        Image(systemName: "book.pages")
+                            .font(.system(size: 36))
                             .foregroundStyle(.tertiary)
-                        Text("sidebar_no_documents".loc)
-                            .font(.subheadline)
+                        Text("ArcanaCHM")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                        Text("reader_start_reading".loc)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
+                        Button("reader_import_chm".loc) {
+                            library.importCHMWithPanel()
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.teal)
+                        .controlSize(.small)
+                        Spacer()
                     }
                 }
             }
