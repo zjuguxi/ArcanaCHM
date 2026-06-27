@@ -135,7 +135,7 @@ struct TOCView: View {
     @State private var tocQuery = ""
 
     private var filteredItems: [TOCItem] {
-        filter(items: items, query: tocQuery)
+        Self.filter(items: items, query: tocQuery)
     }
 
     var body: some View {
@@ -201,13 +201,13 @@ struct TOCView: View {
         return []
     }
 
-    private func filter(items: [TOCItem], query: String) -> [TOCItem] {
+    static func filter(items: [TOCItem], query: String) -> [TOCItem] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return items }
         let lower = trimmed.lowercased()
         return items.compactMap { item in
             let matches = item.title.lowercased().contains(lower)
-            let filteredChildren = filter(items: item.children, query: query)
+            let filteredChildren = Self.filter(items: item.children, query: query)
             if matches || !filteredChildren.isEmpty {
                 return TOCItem(
                     id: item.id,
