@@ -40,6 +40,39 @@ final class CHMImporterTests: XCTestCase {
         XCTAssertEqual(extractor?.kind, .sevenZip)
     }
 
+    func testValidateExtractedContent_rejectsHiddenSymlink() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-hidden-symlink-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+
+        try Data("<html></html>".utf8).write(to: root.appendingPathComponent("index.html"))
+        try FileManager.default.createSymbolicLink(
+            at: root.appendingPathComponent(".hidden-link"),
+            withDestinationURL: FileManager.default.temporaryDirectory
+        )
+
+        let importer = CHMImporter()
+        XCTAssertThrowsError(try importer.validateExtractedContent(at: root)) { error in
+            guard case CHMImportError.unsafeArchiveContent = error else {
+                return XCTFail("expected unsafeArchiveContent, got \(error)")
+            }
+        }
+    }
+
+    func testValidateExtractedContent_allowsHiddenRegularFile() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-hidden-file-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+
+        try Data("<html></html>".utf8).write(to: root.appendingPathComponent("index.html"))
+        try Data("config".utf8).write(to: root.appendingPathComponent(".hidden"))
+
+        let importer = CHMImporter()
+        XCTAssertNoThrow(try importer.validateExtractedContent(at: root))
+    }
+
     func testFindExtractor_nonExecutableInBundleNotReturned() throws {
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("test-nonexec-\(UUID().uuidString)")

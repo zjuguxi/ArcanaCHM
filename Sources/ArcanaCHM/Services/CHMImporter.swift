@@ -128,11 +128,10 @@ final class CHMImporter {
         }
     }
 
-    private func validateExtractedContent(at rootURL: URL) throws {
+    func validateExtractedContent(at rootURL: URL) throws {
         guard let enumerator = fileManager.enumerator(
             at: rootURL,
-            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
-            options: [.skipsHiddenFiles]
+            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]
         ) else {
             return
         }
