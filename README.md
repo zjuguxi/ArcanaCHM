@@ -1,3 +1,5 @@
+[中文版](./README.zh-Hans.md)
+
 # ArcanaCHM
 
 A local-first macOS CHM reader. Native SwiftUI, offline by design.
