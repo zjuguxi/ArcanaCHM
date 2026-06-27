@@ -158,7 +158,7 @@ final class LibraryStore: ObservableObject {
 
     func togglePin(_ book: Book) {
         guard let index = books.firstIndex(where: { $0.id == book.id }) else { return }
-        books[index].isPinned = !(books[index].isPinned == true)
+        books[index].isPinned = books[index].isPinned == true ? nil : true
         sortBooks()
         save()
     }
@@ -271,7 +271,7 @@ final class LibraryStore: ObservableObject {
     }
 }
 
-private extension JSONEncoder {
+extension JSONEncoder {
     static var reader: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -280,7 +280,7 @@ private extension JSONEncoder {
     }
 }
 
-private extension JSONDecoder {
+extension JSONDecoder {
     static var reader: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
