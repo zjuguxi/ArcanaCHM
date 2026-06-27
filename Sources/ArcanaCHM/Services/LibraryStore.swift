@@ -41,13 +41,36 @@ final class LibraryStore: ObservableObject {
             refreshContentFingerprints()
             selectedBookID = books.first?.id
         } catch {
-            errorMessage = error.localizedDescription
+            try? loadFromBackup()
         }
+    }
+
+    private func loadFromBackup() throws {
+        guard FileManager.default.fileExists(atPath: AppPaths.backupFile.path) else {
+            errorMessage = "书库文件损坏，且无自动备份。请重新导入文档。"
+            return
+        }
+        let backupData = try Data(contentsOf: AppPaths.backupFile)
+        if let libraryFile = try? JSONDecoder.reader.decode(LibraryFile.self, from: backupData) {
+            books = libraryFile.books
+        } else {
+            books = try JSONDecoder.reader.decode([Book].self, from: backupData)
+        }
+        books = books.filter { SecurityPolicy.isInsideAppBooks($0.rootURL) }
+        refreshImportedTOCs()
+        refreshContentFingerprints()
+        selectedBookID = books.first?.id
+        save()
+        errorMessage = "书库文件已损坏，已从自动备份恢复。部分数据可能丢失。"
     }
 
     func save() {
         do {
             try AppPaths.ensure()
+            if FileManager.default.fileExists(atPath: AppPaths.libraryFile.path) {
+                try? FileManager.default.removeItem(at: AppPaths.backupFile)
+                try FileManager.default.copyItem(at: AppPaths.libraryFile, to: AppPaths.backupFile)
+            }
             let libraryFile = LibraryFile(schemaVersion: currentSchemaVersion, books: books)
             let data = try JSONEncoder.reader.encode(libraryFile)
             try data.write(to: AppPaths.libraryFile, options: [.atomic])

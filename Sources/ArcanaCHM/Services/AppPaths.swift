@@ -14,6 +14,10 @@ enum AppPaths {
         appSupport.appendingPathComponent("library.json")
     }
 
+    static var backupFile: URL {
+        appSupport.appendingPathComponent("library.json.backup")
+    }
+
     static func ensure() throws {
         try FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: booksDirectory, withIntermediateDirectories: true)
