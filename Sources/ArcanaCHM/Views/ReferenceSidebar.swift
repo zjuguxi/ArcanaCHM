@@ -260,7 +260,10 @@ struct TOCView: View {
         guard !leafIDs.isEmpty else { return [] }
         var result = Set<UUID>()
         func collect(item: TOCItem) -> Bool {
-            let childIsOrHasLeaf = item.children.contains { collect(item: $0) }
+            var childIsOrHasLeaf = false
+            for child in item.children {
+                if collect(item: child) { childIsOrHasLeaf = true }
+            }
             if childIsOrHasLeaf { result.insert(item.id) }
             return childIsOrHasLeaf || leafIDs.contains(item.id)
         }

@@ -166,4 +166,15 @@ final class TOCFilterTests: XCTestCase {
         let result = TOCView.expandedIDsForSearch(in: [root], query: "Chapter")
         XCTAssertEqual(result, [root.id])
     }
+
+    func testExpandedIDs_nonMatchingParentWithMatchingChildAfterLeafSibling() {
+        // Regression: `contains` short-circuits; if first sibling is a leaf match,
+        // later siblings with leaf descendants are skipped.
+        let leafA = TOCItem(id: UUID(), title: "AAA", path: "a.html", children: [])
+        let leafB = TOCItem(id: UUID(), title: "BBB match", path: "b.html", children: [])
+        let mid = TOCItem(id: UUID(), title: "Mid", path: nil, children: [leafB])
+        let parent = TOCItem(id: UUID(), title: "Parent", path: nil, children: [leafA, mid])
+        let result = TOCView.expandedIDsForSearch(in: [parent], query: "match")
+        XCTAssertEqual(result, [parent.id, mid.id])
+    }
 }
