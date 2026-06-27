@@ -92,4 +92,78 @@ final class TOCFilterTests: XCTestCase {
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result[0].children.count, 2)
     }
+
+    // MARK: - leafMatchIDs tests
+
+    func testLeafMatchIDs_emptyQuery() {
+        let result = TOCView.leafMatchIDs(in: [root], query: "")
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func testLeafMatchIDs_noMatch() {
+        let result = TOCView.leafMatchIDs(in: [root], query: "zzzzzz")
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func testLeafMatchIDs_leafMatch() {
+        let result = TOCView.leafMatchIDs(in: [root], query: "grandchild")
+        XCTAssertEqual(result, [grandchild.id])
+    }
+
+    func testLeafMatchIDs_midLevelMatch() {
+        let result = TOCView.leafMatchIDs(in: [root], query: "Alpha")
+        XCTAssertEqual(result, [childA.id])
+    }
+
+    func testLeafMatchIDs_bothLevelsMatch() {
+        let result = TOCView.leafMatchIDs(in: [root], query: "Topic")
+        XCTAssertEqual(result, [grandchild.id])
+    }
+
+    func testLeafMatchIDs_multipleLeafMatches() {
+        let result = TOCView.leafMatchIDs(in: [root], query: "Chapter")
+        XCTAssertEqual(result, [childA.id, childB.id])
+    }
+
+    func testLeafMatchIDs_topLevelMatch() {
+        let result = TOCView.leafMatchIDs(in: [root], query: "Root")
+        XCTAssertEqual(result, [root.id])
+    }
+
+    // MARK: - expandedIDsForSearch tests
+
+    func testExpandedIDs_emptyQuery() {
+        let result = TOCView.expandedIDsForSearch(in: [root], query: "")
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func testExpandedIDs_noMatch() {
+        let result = TOCView.expandedIDsForSearch(in: [root], query: "zzzzzz")
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func testExpandedIDs_leafMatch() {
+        let result = TOCView.expandedIDsForSearch(in: [root], query: "grandchild")
+        XCTAssertEqual(result, [childA.id, root.id])
+    }
+
+    func testExpandedIDs_midLevelMatch() {
+        let result = TOCView.expandedIDsForSearch(in: [root], query: "Alpha")
+        XCTAssertEqual(result, [root.id])
+    }
+
+    func testExpandedIDs_bothLevelsMatch() {
+        let result = TOCView.expandedIDsForSearch(in: [root], query: "Topic")
+        XCTAssertEqual(result, [childA.id, root.id])
+    }
+
+    func testExpandedIDs_topLevelMatch() {
+        let result = TOCView.expandedIDsForSearch(in: [root], query: "Root")
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func testExpandedIDs_multipleLeafMatches() {
+        let result = TOCView.expandedIDsForSearch(in: [root], query: "Chapter")
+        XCTAssertEqual(result, [root.id])
+    }
 }

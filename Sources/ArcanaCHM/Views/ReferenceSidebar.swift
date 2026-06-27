@@ -138,6 +138,10 @@ struct TOCView: View {
         Self.filter(items: items, query: tocQuery)
     }
 
+    private var isSearching: Bool {
+        !tocQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
@@ -181,13 +185,23 @@ struct TOCView: View {
             expandParentsForCurrentPath()
         }
         .onChange(of: reader.currentPath) { _, _ in
+            guard !isSearching else { return }
             expandParentsForCurrentPath()
+        }
+        .onChange(of: tocQuery) { _, newValue in
+            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                expandedItems.removeAll()
+                expandParentsForCurrentPath()
+            } else {
+                expandedItems = Self.expandedIDsForSearch(in: items, query: trimmed)
+            }
         }
     }
 
     private func expandParentsForCurrentPath() {
         guard let currentPath = reader.currentPath else { return }
-        expandedItems.formUnion(parentIDs(containing: currentPath, in: filteredItems))
+        expandedItems.formUnion(parentIDs(containing: currentPath, in: items))
     }
 
     private func parentIDs(containing path: String, in items: [TOCItem]) -> Set<UUID> {
@@ -218,6 +232,40 @@ struct TOCView: View {
             }
             return nil
         }
+    }
+
+    /// IDs of the deepest matching items — items whose own title matches but
+    /// none of their descendants also match.
+    static func leafMatchIDs(in items: [TOCItem], query: String) -> Set<UUID> {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        let lower = trimmed.lowercased()
+        var result = Set<UUID>()
+        for item in items {
+            let selfMatches = item.title.lowercased().contains(lower)
+            let childLeafIDs = leafMatchIDs(in: item.children, query: query)
+            if childLeafIDs.isEmpty {
+                if selfMatches { result.insert(item.id) }
+            } else {
+                result.formUnion(childLeafIDs)
+            }
+        }
+        return result
+    }
+
+    /// IDs of all items that are ancestors of at least one leaf match.
+    /// These should be expanded so the leaf matches are visible.
+    static func expandedIDsForSearch(in items: [TOCItem], query: String) -> Set<UUID> {
+        let leafIDs = leafMatchIDs(in: items, query: query)
+        guard !leafIDs.isEmpty else { return [] }
+        var result = Set<UUID>()
+        func collect(item: TOCItem) -> Bool {
+            let childIsOrHasLeaf = item.children.contains { collect(item: $0) }
+            if childIsOrHasLeaf { result.insert(item.id) }
+            return childIsOrHasLeaf || leafIDs.contains(item.id)
+        }
+        for item in items { _ = collect(item: item) }
+        return result
     }
 }
 
