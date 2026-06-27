@@ -10,19 +10,21 @@ CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 
+echo "Building release binary..."
 cd "$ROOT_DIR"
 swift build -c release
 
+echo "Creating .app bundle..."
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$BUILD_DIR/$APP_NAME" "$MACOS_DIR/$APP_NAME"
 cp "$ROOT_DIR/Resources/AppIcon.icns" "$RESOURCES_DIR/AppIcon.icns"
 
-# Ensure 7zz extractor is available and bundle it
+echo "Bundling 7zz extractor..."
 "$ROOT_DIR/Scripts/download_extractor.sh"
 cp "$ROOT_DIR/Resources/7zz" "$RESOURCES_DIR/7zz"
 
-# Bundle SwiftPM resources (localized strings)
+echo "Bundling localized resources..."
 cp -R "$BUILD_DIR/${APP_NAME}_${APP_NAME}.bundle" "$APP_DIR/"
 
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST
@@ -56,7 +58,7 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# Ad-hoc sign to prevent "damaged" alert on macOS 14+
-codesign --force --deep --sign - "$APP_DIR" 2>/dev/null || true
+echo "Ad-hoc signing..."
+codesign --force --deep --sign - "$APP_DIR" 2>/dev/null || echo "Warning: codesign skipped"
 
-echo "$APP_DIR"
+echo "Done: $APP_DIR"

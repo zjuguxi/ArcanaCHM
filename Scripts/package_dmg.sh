@@ -17,18 +17,19 @@ if [ ! -d "$APP_DIR" ]; then
   exit 1
 fi
 
+echo "Preparing staging area..."
 # Detach any stale mounts of the same volume
 for mount in $(hdiutil info 2>/dev/null | grep -i "$VOL_NAME" | grep -o "/dev/disk[0-9]*"); do
-  hdiutil detach "$mount" 2>/dev/null || true
+  echo "Detaching stale mount $mount..."
+  hdiutil detach "$mount" || true
 done
 
-# Prepare staging area
 rm -rf "$STAGING"
 mkdir -p "$STAGING"
 cp -R "$APP_DIR" "$STAGING"
 ln -s /Applications "$STAGING/Applications"
 
-# Create read-write DMG
+echo "Creating read-write DMG..."
 rm -f "$RW_DMG"
 hdiutil create -volname "$VOL_NAME" \
   -srcfolder "$STAGING" \
@@ -36,8 +37,8 @@ hdiutil create -volname "$VOL_NAME" \
   -format UDRW \
   "$RW_DMG"
 
-# Mount and set icon layout
-hdiutil attach -readwrite -noverify "$RW_DMG" 2>/dev/null
+echo "Mounting DMG to set icon layout..."
+hdiutil attach -readwrite -noverify "$RW_DMG"
 
 # Find actual mount path (macOS may append a number)
 MOUNT_DIR=""
@@ -48,9 +49,10 @@ for try in "/Volumes/$VOL_NAME"*; do
   fi
 done
 
+echo "Arranging icons on $MOUNT_DIR..."
 sleep 1
 
-osascript &>/dev/null <<EOF || true
+osascript <<EOF || echo "Warning: icon layout skipped"
 tell application "Finder"
   set theDisk to disk "$(basename "$MOUNT_DIR")"
   open theDisk
@@ -73,23 +75,22 @@ EOF
 
 sync
 
-# Detach by finding disk for this mount point
+echo "Detaching DMG..."
 DISK=$(df "$MOUNT_DIR" 2>/dev/null | tail -1 | awk '{print $1}' | xargs basename 2>/dev/null || echo "")
 if [ -n "$DISK" ]; then
-  hdiutil detach "/dev/$DISK" 2>/dev/null || hdiutil detach -force "/dev/$DISK" 2>/dev/null || true
+  hdiutil detach "/dev/$DISK" || hdiutil detach -force "/dev/$DISK" || true
 else
-  # Fallback: detach all mounts of the template DMG
   for mount in $(hdiutil info 2>/dev/null | grep "$RW_DMG" | grep -o "/dev/disk[0-9]*"); do
-    hdiutil detach "$mount" 2>/dev/null || true
+    hdiutil detach "$mount" || true
   done
 fi
 
-# Convert to compressed read-only DMG
+echo "Converting to compressed DMG..."
 rm -f "$DMG_PATH"
 hdiutil convert "$RW_DMG" -ov -format UDZO -o "$DMG_PATH"
 
-# Clean up
+echo "Cleaning up..."
 rm -f "$RW_DMG"
 rm -rf "$STAGING"
 
-echo "$DMG_PATH"
+echo "Done: $DMG_PATH"
