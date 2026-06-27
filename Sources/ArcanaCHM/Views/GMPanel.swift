@@ -3,6 +3,7 @@ import SwiftUI
 struct FavoritesPanel: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var reader: ReaderStore
+    @EnvironmentObject private var locale: LocalizationService
     let book: Book
 
     var body: some View {
@@ -11,12 +12,12 @@ struct FavoritesPanel: View {
                 HStack(spacing: 8) {
                     Image(systemName: "bookmark")
                         .foregroundStyle(.secondary)
-                    Text("暂无收藏")
+                    Text("favorites_no_bookmarks".loc)
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
                 .padding(.vertical, 5)
-                .help("暂无收藏")
+                .help("favorites_no_bookmarks".loc)
             }
             .listStyle(.inset)
         } else {
@@ -36,7 +37,7 @@ struct FavoritesPanel: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help("打开收藏：\(bookmark.title)")
+                .help("favorites_help_open".loc(bookmark.title))
             }
             .listStyle(.inset)
         }

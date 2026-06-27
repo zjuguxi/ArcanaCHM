@@ -3,12 +3,13 @@ import SwiftUI
 struct LibrarySidebar: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var reader: ReaderStore
+    @EnvironmentObject private var locale: LocalizationService
     @State private var pendingDeleteBook: Book?
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("文档")
+                Text("sidebar_documents".loc)
                     .font(.headline)
                 Spacer()
                 Button {
@@ -18,7 +19,7 @@ struct LibrarySidebar: View {
                         .frame(width: 20, height: 20)
                 }
                 .buttonStyle(.borderless)
-                .help("导入 CHM")
+                .help("sidebar_import_chm_help".loc)
             }
             .padding()
 
@@ -43,17 +44,17 @@ struct LibrarySidebar: View {
                         .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 6)
-                    .help("打开文档：\(book.title)")
+                    .help("sidebar_open_document".loc(book.title))
                     .contextMenu {
                         Button {
                             library.togglePin(book)
                         } label: {
-                            Label(book.isPinned == true ? "取消置顶" : "置顶", systemImage: book.isPinned == true ? "pin.slash" : "pin")
+                            Label(book.isPinned == true ? "sidebar_unpin".loc : "sidebar_pin".loc, systemImage: book.isPinned == true ? "pin.slash" : "pin")
                         }
                         Button(role: .destructive) {
                             pendingDeleteBook = book
                         } label: {
-                            Label("删除", systemImage: "trash")
+                            Label("sidebar_delete".loc, systemImage: "trash")
                         }
                     }
                     .tag(book.id)
@@ -66,7 +67,7 @@ struct LibrarySidebar: View {
                         Image(systemName: "books.vertical")
                             .font(.title2)
                             .foregroundStyle(.tertiary)
-                        Text("暂无文档")
+                        Text("sidebar_no_documents".loc)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -84,21 +85,21 @@ struct LibrarySidebar: View {
                 reader.open(path, scrollY: library.scrollPositions.scrollY(bookID: book.id, path: path))
             }
         }
-        .alert("删除文档？", isPresented: Binding(
+        .alert("sidebar_delete_confirm_title".loc, isPresented: Binding(
             get: { pendingDeleteBook != nil },
             set: { if !$0 { pendingDeleteBook = nil } }
         )) {
-            Button("删除", role: .destructive) {
+            Button("sidebar_delete".loc, role: .destructive) {
                 if let book = pendingDeleteBook {
                     library.delete(book)
                 }
                 pendingDeleteBook = nil
             }
-            Button("取消", role: .cancel) {
+            Button("sidebar_cancel".loc, role: .cancel) {
                 pendingDeleteBook = nil
             }
         } message: {
-            Text("会从书库中移除“\(pendingDeleteBook?.title ?? "")”，并删除本地解包缓存。原始 CHM 文件不会被删除。")
+            Text("sidebar_delete_confirm_message".loc(pendingDeleteBook?.title ?? ""))
         }
     }
 }

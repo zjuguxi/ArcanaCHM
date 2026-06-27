@@ -22,6 +22,9 @@ cp "$ROOT_DIR/Resources/AppIcon.icns" "$RESOURCES_DIR/AppIcon.icns"
 "$ROOT_DIR/Scripts/download_extractor.sh"
 cp "$ROOT_DIR/Resources/7zz" "$RESOURCES_DIR/7zz"
 
+# Bundle SwiftPM resources (localized strings)
+cp -R "$BUILD_DIR/${APP_NAME}_${APP_NAME}.bundle" "$APP_DIR/"
+
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

@@ -1,0 +1,80 @@
+"app_name" = "ArcanaCHM";
+"arcana_chm" = "ArcanaCHM";
+
+/* Sidebar */
+"sidebar_documents" = "文档";
+"sidebar_import_chm" = "导入 CHM...";
+"sidebar_import_chm_short" = "导入 CHM";
+"sidebar_import_chm_help" = "导入 CHM";
+"sidebar_import_folder" = "导入文件夹...";
+"sidebar_import_folder_menu" = "打开已解包目录...";
+"sidebar_no_documents" = "暂无文档";
+"sidebar_open_document" = "打开文档：%@";
+"sidebar_pin" = "置顶";
+"sidebar_unpin" = "取消置顶";
+"sidebar_delete" = "删除";
+"sidebar_delete_confirm_title" = "删除文档？";
+"sidebar_delete_confirm_message" = "会从书库中移除\"%@\"，并删除本地解包缓存。原始 CHM 文件不会被删除。";
+"sidebar_cancel" = "取消";
+
+/* Tabs */
+"tab_toc" = "目录";
+"tab_search" = "搜索";
+"tab_favorites" = "收藏";
+"tab_switch" = "切换面板";
+
+/* TOC */
+"toc_help_expand" = "展开或收起：%@";
+"toc_help_open" = "打开章节：%@";
+
+/* Search */
+"search_placeholder" = "搜索正文、标题、关键词...";
+"search_help_keywords" = "输入搜索关键词";
+"search_help_clear" = "清空搜索内容";
+"search_help_search" = "搜索";
+"search_no_results" = "没有结果";
+"search_help_open_result" = "打开搜索结果";
+"search_history" = "搜索历史";
+"search_no_history" = "暂无搜索历史";
+"search_help_search_again" = "再次搜索：%@";
+"search_help_delete_entry" = "删除搜索记录";
+"search_no_document" = "请先导入 CHM 文档";
+
+/* Reader */
+"reader_no_document" = "未选择文档";
+"reader_start_reading" = "导入 CHM 文档后开始阅读";
+"reader_import_chm" = "导入 CHM";
+"reader_font_decrease" = "缩小字体";
+"reader_font_increase" = "放大字体";
+"reader_focus_mode" = "专注模式";
+"reader_bookmark" = "收藏当前位置";
+"reader_bookmarked" = "已收藏当前位置";
+"reader_light_mode" = "白天模式";
+"reader_dark_mode" = "夜间模式";
+"reader_switch_light" = "切换到白天模式";
+"reader_switch_dark" = "切换到夜间模式";
+"reader_importing" = "正在导入文档...";
+
+/* Favorites */
+"favorites_no_bookmarks" = "暂无收藏";
+"favorites_help_open" = "打开收藏：%@";
+
+/* Library */
+"library_duplicate" = "这个 CHM 文档已经在书库中，已为你打开现有副本。";
+"library_corrupted_no_backup" = "书库文件损坏，且无自动备份。请重新导入文档。";
+"library_corrupted_restored" = "书库文件已损坏，已从自动备份恢复。部分数据可能丢失。";
+
+/* Errors */
+"error_no_extractor" = "无法找到 CHM 解压器。请尝试重新安装 App，或通过 `brew install sevenzip` 手动安装。";
+"error_extraction_failed" = "CHM 解压失败：%@";
+"error_no_content" = "导入的文档不包含可读的 HTML 内容。";
+"error_unsafe_content" = "出于安全原因导入被阻止：%@";
+
+/* Alerts */
+"alert_ok" = "确定";
+
+/* Language */
+"language_title" = "语言";
+"language_system" = "跟随系统";
+"language_english" = "English";
+"language_chinese" = "中文";

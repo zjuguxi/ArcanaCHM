@@ -47,7 +47,7 @@ final class LibraryStore: ObservableObject {
 
     private func loadFromBackup() throws {
         guard FileManager.default.fileExists(atPath: AppPaths.backupFile.path) else {
-            errorMessage = "书库文件损坏，且无自动备份。请重新导入文档。"
+            errorMessage = "library_corrupted_no_backup".loc
             return
         }
         let backupData = try Data(contentsOf: AppPaths.backupFile)
@@ -61,7 +61,7 @@ final class LibraryStore: ObservableObject {
         refreshContentFingerprints()
         selectedBookID = books.first?.id
         save()
-        errorMessage = "书库文件已损坏，已从自动备份恢复。部分数据可能丢失。"
+        errorMessage = "library_corrupted_restored".loc
     }
 
     func save() {
@@ -219,7 +219,7 @@ final class LibraryStore: ObservableObject {
             selectedBookID = duplicate.id
             isImporting = false
             removeImportedFiles(for: book)
-            errorMessage = "这个 CHM 文档已经在书库中，已为你打开现有副本。"
+            errorMessage = "library_duplicate".loc
             return
         }
 

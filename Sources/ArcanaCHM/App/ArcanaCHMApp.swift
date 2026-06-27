@@ -10,6 +10,7 @@ struct ArcanaCHMApp: App {
             ContentView()
                 .environmentObject(library)
                 .environmentObject(reader)
+                .environmentObject(LocalizationService.shared)
                 .frame(minWidth: 1180, minHeight: 760)
                 .task {
                     await library.load()
@@ -18,12 +19,12 @@ struct ArcanaCHMApp: App {
         .windowStyle(.titleBar)
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("导入 CHM...") {
+                Button("sidebar_import_chm".loc) {
                     NotificationCenter.default.post(name: .importCHMRequested, object: nil)
                 }
                 .keyboardShortcut("o", modifiers: [.command])
 
-                Button("打开已解包目录...") {
+                Button("sidebar_import_folder_menu".loc) {
                     NotificationCenter.default.post(name: .openFolderRequested, object: nil)
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])

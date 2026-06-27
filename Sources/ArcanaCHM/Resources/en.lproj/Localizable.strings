@@ -1,0 +1,80 @@
+"app_name" = "ArcanaCHM";
+"arcana_chm" = "ArcanaCHM";
+
+/* Sidebar */
+"sidebar_documents" = "Documents";
+"sidebar_import_chm" = "Import CHM...";
+"sidebar_import_chm_short" = "Import CHM";
+"sidebar_import_chm_help" = "Import CHM";
+"sidebar_import_folder" = "Import Folder...";
+"sidebar_import_folder_menu" = "Open Extracted Folder...";
+"sidebar_no_documents" = "No Documents";
+"sidebar_open_document" = "Open document: %@";
+"sidebar_pin" = "Pin";
+"sidebar_unpin" = "Unpin";
+"sidebar_delete" = "Delete";
+"sidebar_delete_confirm_title" = "Delete Document?";
+"sidebar_delete_confirm_message" = "Remove \"%@\" from the library and delete the local cache. The original CHM file will not be deleted.";
+"sidebar_cancel" = "Cancel";
+
+/* Tabs */
+"tab_toc" = "Table of Contents";
+"tab_search" = "Search";
+"tab_favorites" = "Bookmarks";
+"tab_switch" = "Switch Panel";
+
+/* TOC */
+"toc_help_expand" = "Expand or collapse: %@";
+"toc_help_open" = "Open chapter: %@";
+
+/* Search */
+"search_placeholder" = "Search content, titles, keywords...";
+"search_help_keywords" = "Enter search keywords";
+"search_help_clear" = "Clear search";
+"search_help_search" = "Search";
+"search_no_results" = "No Results";
+"search_help_open_result" = "Open search result";
+"search_history" = "Search History";
+"search_no_history" = "No Search History";
+"search_help_search_again" = "Search again: %@";
+"search_help_delete_entry" = "Delete search history entry";
+"search_no_document" = "Please import a CHM document first";
+
+/* Reader */
+"reader_no_document" = "No Document Selected";
+"reader_start_reading" = "Start reading after importing a CHM document";
+"reader_import_chm" = "Import CHM";
+"reader_font_decrease" = "Decrease Font Size";
+"reader_font_increase" = "Increase Font Size";
+"reader_focus_mode" = "Focus Mode";
+"reader_bookmark" = "Bookmark Current Position";
+"reader_bookmarked" = "Position Bookmarked";
+"reader_light_mode" = "Light Mode";
+"reader_dark_mode" = "Dark Mode";
+"reader_switch_light" = "Switch to Light Mode";
+"reader_switch_dark" = "Switch to Dark Mode";
+"reader_importing" = "Importing document...";
+
+/* Favorites */
+"favorites_no_bookmarks" = "No Bookmarks";
+"favorites_help_open" = "Open bookmark: %@";
+
+/* Library */
+"library_duplicate" = "This CHM document is already in the library. Opening the existing copy.";
+"library_corrupted_no_backup" = "Library file is corrupted and no backup was found. Please re-import your documents.";
+"library_corrupted_restored" = "Library file was corrupted. Restored from automatic backup. Some data may be lost.";
+
+/* Errors */
+"error_no_extractor" = "Cannot find CHM extractor. Please try reinstalling the App, or install manually via `brew install sevenzip`.";
+"error_extraction_failed" = "CHM extraction failed: %@";
+"error_no_content" = "The imported book does not contain readable HTML content.";
+"error_unsafe_content" = "Import blocked for safety: %@";
+
+/* Alerts */
+"alert_ok" = "OK";
+
+/* Language */
+"language_title" = "Language";
+"language_system" = "Follow System";
+"language_english" = "English";
+"language_chinese" = "中文";

@@ -3,8 +3,9 @@ import SwiftUI
 struct ReaderPane: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var reader: ReaderStore
+    @EnvironmentObject private var locale: LocalizationService
 
-    @State private var currentTitle = "Ready"
+    @State private var currentTitle = ""
     @State private var hoveredToolbarTitle: String?
 
     var body: some View {
@@ -44,11 +45,11 @@ struct ReaderPane: View {
                         Text("ArcanaCHM")
                             .font(.title2)
                             .fontWeight(.semibold)
-                        Text("导入 CHM 文档后开始阅读")
+                        Text("reader_start_reading".loc)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .padding(.bottom, 24)
-                        Button("导入 CHM") {
+                        Button("reader_import_chm".loc) {
                             library.importCHMWithPanel()
                         }
                         .buttonStyle(.plain)
@@ -81,10 +82,10 @@ struct ReaderPane: View {
     private var toolbar: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(currentTitle)
+                Text(currentTitle.isEmpty ? "reader_no_document".loc : currentTitle)
                     .font(.headline)
                     .lineLimit(1)
-                Text(library.selectedBook?.title ?? "未选择文档")
+                Text(library.selectedBook?.title ?? "reader_no_document".loc)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -92,16 +93,16 @@ struct ReaderPane: View {
 
             Spacer()
 
-            ReaderToolbarButton(title: "缩小字体", systemImage: "textformat.size.smaller", hoveredTitle: $hoveredToolbarTitle) {
+            ReaderToolbarButton(title: "reader_font_decrease".loc, systemImage: "textformat.size.smaller", hoveredTitle: $hoveredToolbarTitle) {
                 reader.fontScale = max(0.82, reader.fontScale - 0.08)
             }
 
-            ReaderToolbarButton(title: "放大字体", systemImage: "textformat.size.larger", hoveredTitle: $hoveredToolbarTitle) {
+            ReaderToolbarButton(title: "reader_font_increase".loc, systemImage: "textformat.size.larger", hoveredTitle: $hoveredToolbarTitle) {
                 reader.fontScale = min(1.42, reader.fontScale + 0.08)
             }
 
             ReaderToolbarButton(
-                title: "专注模式",
+                title: "reader_focus_mode".loc,
                 systemImage: reader.spotlightMode ? "rectangle.expand.vertical" : "rectangle.compress.vertical",
                 isActive: reader.spotlightMode,
                 hoveredTitle: $hoveredToolbarTitle
@@ -110,7 +111,7 @@ struct ReaderPane: View {
             }
 
             ReaderToolbarButton(
-                title: isCurrentPageBookmarked ? "已收藏当前位置" : "收藏当前位置",
+                title: isCurrentPageBookmarked ? "reader_bookmarked".loc : "reader_bookmark".loc,
                 systemImage: isCurrentPageBookmarked ? "bookmark.fill" : "bookmark",
                 isActive: isCurrentPageBookmarked,
                 isDisabled: activeReadingPath == nil,
@@ -141,6 +142,7 @@ struct ReaderPane: View {
 }
 
 private struct ReaderToolbarButton: View {
+    @EnvironmentObject private var locale: LocalizationService
     let title: String
     let systemImage: String
     var isActive = false

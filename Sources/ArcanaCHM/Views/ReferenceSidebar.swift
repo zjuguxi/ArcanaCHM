@@ -3,6 +3,7 @@ import SwiftUI
 struct ReferenceSidebar: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var reader: ReaderStore
+    @EnvironmentObject private var locale: LocalizationService
 
     @Binding var searchText: String
     @Binding var searchHits: [SearchHit]
@@ -19,10 +20,10 @@ struct ReferenceSidebar: View {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("搜索正文、标题、关键词...", text: $searchText)
+                TextField("search_placeholder".loc, text: $searchText)
                     .textFieldStyle(.plain)
                     .onSubmit(runSearch)
-                    .help("输入搜索关键词")
+                    .help("search_help_keywords".loc)
                 if !searchText.isEmpty {
                     Button {
                         searchText = ""
@@ -32,7 +33,7 @@ struct ReferenceSidebar: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
-                    .help("清空搜索内容")
+                    .help("search_help_clear".loc)
                 }
                 Button {
                     runSearch()
@@ -41,7 +42,7 @@ struct ReferenceSidebar: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.teal)
-                .help("搜索")
+                .help("search_help_search".loc)
                 .disabled(searchText.trimmingCharacters(in: .whitespacesAndNewlines).count < 2 || isSearching)
                 ZStack {
                     ProgressView()
@@ -56,12 +57,12 @@ struct ReferenceSidebar: View {
             .padding([.horizontal, .top], 12)
 
             Picker("", selection: tabSelection) {
-                Label("目录", systemImage: "list.bullet").tag("toc")
-                Label("搜索", systemImage: "text.magnifyingglass").tag("search")
-                Label("收藏", systemImage: "bookmark").tag("favorites")
+                Label("tab_toc".loc, systemImage: "list.bullet").tag("toc")
+                Label("tab_search".loc, systemImage: "text.magnifyingglass").tag("search")
+                Label("tab_favorites".loc, systemImage: "bookmark").tag("favorites")
             }
             .pickerStyle(.segmented)
-            .help("切换面板")
+            .help("tab_switch".loc)
             .padding(12)
 
             Divider()
@@ -108,7 +109,7 @@ struct ReferenceSidebar: View {
             HStack(spacing: 8) {
                 Image(systemName: "bookmark")
                     .foregroundStyle(.secondary)
-                Text("请先导入 CHM 文档")
+                Text("search_no_document".loc)
                     .foregroundStyle(.secondary)
                 Spacer()
             }
@@ -128,6 +129,7 @@ struct ReferenceSidebar: View {
 
 struct TOCView: View {
     @EnvironmentObject private var reader: ReaderStore
+    @EnvironmentObject private var locale: LocalizationService
     let items: [TOCItem]
     @Binding var expandedItems: Set<UUID>
 
@@ -170,6 +172,7 @@ struct TOCView: View {
 
 struct TOCNodeRow: View {
     @EnvironmentObject private var reader: ReaderStore
+    @EnvironmentObject private var locale: LocalizationService
     let item: TOCItem
     let depth: Int
     let currentPath: String?
@@ -213,7 +216,7 @@ struct TOCNodeRow: View {
                             handledChevronTap = true
                             toggleExpandedOrOpen()
                         }
-                        .help(hasChildren ? "展开或收起：\(item.title)" : "打开章节：\(item.title)")
+                        .help(hasChildren ? "toc_help_expand".loc(item.title) : "toc_help_open".loc(item.title))
 
                     Text(item.title)
                         .font(.system(size: 13, weight: isCurrent ? .semibold : .regular))
@@ -232,7 +235,7 @@ struct TOCNodeRow: View {
                         openOrToggle()
                     }
                 }
-                .help(item.path == nil ? "展开或收起：\(item.title)" : "打开章节：\(item.title)")
+                .help(item.path == nil ? "toc_help_expand".loc(item.title) : "toc_help_open".loc(item.title))
             }
             .contentShape(Rectangle())
 
@@ -278,6 +281,7 @@ struct TOCNodeRow: View {
 
 struct SearchResultsView: View {
     @EnvironmentObject private var reader: ReaderStore
+    @EnvironmentObject private var locale: LocalizationService
     let query: String
     let hits: [SearchHit]
     let history: [String]
@@ -289,7 +293,7 @@ struct SearchResultsView: View {
         if trimmed.count < 2 {
             SearchHistoryView(history: history, runHistoricalSearch: runHistoricalSearch, deleteHistoryItem: deleteHistoryItem)
         } else if hits.isEmpty {
-            ContentUnavailableView("没有结果", systemImage: "magnifyingglass")
+            ContentUnavailableView("search_no_results".loc, systemImage: "magnifyingglass")
         } else {
             List(hits) { hit in
                 Button {
@@ -307,7 +311,7 @@ struct SearchResultsView: View {
                     .padding(.vertical, 5)
                 }
                 .buttonStyle(.plain)
-                .help("打开搜索结果")
+                .help("search_help_open_result".loc)
             }
             .listStyle(.inset)
         }
@@ -329,23 +333,24 @@ struct SearchResultsView: View {
 }
 
 struct SearchHistoryView: View {
+    @EnvironmentObject private var locale: LocalizationService
     let history: [String]
     var runHistoricalSearch: (String) -> Void
     var deleteHistoryItem: (String) -> Void
 
     var body: some View {
         List {
-            Section("搜索历史") {
+            Section("search_history".loc) {
                 if history.isEmpty {
                     HStack(spacing: 8) {
                         Image(systemName: "clock")
                             .foregroundStyle(.secondary)
-                        Text("暂无搜索历史")
+                        Text("search_no_history".loc)
                             .foregroundStyle(.secondary)
                         Spacer()
                     }
                     .padding(.vertical, 5)
-                    .help("暂无搜索历史")
+                    .help("search_no_history".loc)
                 } else {
                     ForEach(history, id: \.self) { query in
                         HStack(spacing: 8) {
@@ -363,7 +368,7 @@ struct SearchHistoryView: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            .help("再次搜索：\(query)")
+                            .help("search_help_search_again".loc(query))
 
                             Button {
                                 deleteHistoryItem(query)
@@ -373,7 +378,7 @@ struct SearchHistoryView: View {
                                     .foregroundStyle(.tertiary)
                             }
                             .buttonStyle(.plain)
-                            .help("删除搜索记录")
+                            .help("search_help_delete_entry".loc)
                             .opacity(0.7)
                         }
                     }

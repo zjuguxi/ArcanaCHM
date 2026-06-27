@@ -9,13 +9,13 @@ enum CHMImportError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .extractorMissing:
-            return "无法找到 CHM 解压器。请尝试重新安装 App，或通过 `brew install sevenzip` 手动安装。"
+            return "error_no_extractor".loc
         case .extractionFailed(let message):
-            return "CHM extraction failed: \(message)"
+            return "error_extraction_failed".loc(message)
         case .noReadableContent:
-            return "The imported book does not contain readable HTML content."
+            return "error_no_content".loc
         case .unsafeArchiveContent(let message):
-            return "Import blocked for safety: \(message)"
+            return "error_unsafe_content".loc(message)
         }
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var reader: ReaderStore
+    @EnvironmentObject private var locale: LocalizationService
 
     @State private var searchText = ""
     @State private var searchHits: [SearchHit] = []
@@ -51,9 +52,21 @@ struct ContentView: View {
                 Button {
                     reader.darkMode.toggle()
                 } label: {
-                    Label(reader.darkMode ? "白天模式" : "夜间模式", systemImage: reader.darkMode ? "sun.max" : "moon")
+                    Label(reader.darkMode ? "reader_dark_mode".loc : "reader_light_mode".loc, systemImage: reader.darkMode ? "sun.max" : "moon")
                 }
-                .help(reader.darkMode ? "切换到白天模式" : "切换到夜间模式")
+                .help(reader.darkMode ? "reader_switch_light".loc : "reader_switch_dark".loc)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Picker("language_title".loc, selection: $locale.currentLanguage) {
+                        ForEach(LocalizationService.Language.allCases, id: \.self) { lang in
+                            Text(locale.label(for: lang)).tag(lang)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                } label: {
+                    Label("language_title".loc, systemImage: "globe")
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .importCHMRequested)) { _ in
@@ -62,11 +75,11 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .openFolderRequested)) { _ in
             library.importFolderWithPanel()
         }
-        .alert("ArcanaCHM", isPresented: Binding(
+        .alert("arcana_chm".loc, isPresented: Binding(
             get: { library.errorMessage != nil },
             set: { if !$0 { library.errorMessage = nil } }
         )) {
-            Button("OK", role: .cancel) {}
+            Button("alert_ok".loc, role: .cancel) {}
         } message: {
             Text(library.errorMessage ?? "")
         }
@@ -74,7 +87,7 @@ struct ContentView: View {
             if library.isImporting {
                 ZStack {
                     Color.black.opacity(0.18)
-                    ProgressView("正在导入文档...")
+                    ProgressView("reader_importing".loc)
                         .padding(24)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
                 }

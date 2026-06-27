@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "ArcanaCHM",
+    defaultLocalization: "en",
     platforms: [
         .macOS(.v14)
     ],
@@ -13,7 +14,8 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "ArcanaCHM",
-            path: "Sources/ArcanaCHM"
+            path: "Sources/ArcanaCHM",
+            resources: [.process("Resources")]
         ),
         .testTarget(
             name: "ArcanaCHMTests",
