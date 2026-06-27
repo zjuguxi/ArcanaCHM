@@ -10,12 +10,12 @@ A local-first macOS CHM reader. Native SwiftUI, offline by design.
 - Import `.chm` files directly — extractor (`7zz`) is bundled inside the app, no Homebrew needed.
 - Import already-extracted folders.
 - Reading memory per document: last page + scroll position (500ms debounced).
-- Bookmarks, page-linked notes, search history, full-text search.
+- Bookmarks, search history, full-text search.
 - Bilingual UI: English / 中文 (system language by default, manual switch in toolbar).
 - Light & dark reading themes, font scaling, focus mode.
 - Automatic backup of `library.json` — corrupt files are restored from backup.
 - Path sandboxing — no access outside the app's own data directory.
-- 92 unit tests covering security policy, TOC parsing, library persistence, CHM importer, models.
+- 90 unit tests covering security policy, TOC parsing, library persistence, CHM importer, encoding, models.
 
 ## Requirements
 
@@ -37,7 +37,7 @@ The app is ad-hoc signed during packaging to prevent macOS's misleading "damaged
 - `⇧⌘O`: import an extracted folder.
 - Directory tab: document navigation.
 - Search tab: full-text local search.
-- Favorites tab: bookmarks and notes.
+- Favorites tab: bookmarks.
 
 ## License
 
