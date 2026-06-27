@@ -29,22 +29,6 @@ final class SearchService {
         return hits
     }
 
-    private func readText(_ url: URL) -> String? {
-        let encodings: [String.Encoding] = [
-            .utf8,
-            .gb18030,
-            .windowsCP1252,
-            .isoLatin1
-        ]
-
-        for encoding in encodings {
-            if let text = try? String(contentsOf: url, encoding: encoding) {
-                return text
-            }
-        }
-        return nil
-    }
-
     private func isSafeRegularFile(_ url: URL, rootURL: URL) -> Bool {
         guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]),
               values.isRegularFile == true,
@@ -60,7 +44,7 @@ final class SearchService {
         text = text.replacingOccurrences(of: #"<style[\s\S]*?</style>"#, with: " ", options: .regularExpression)
         text = text.replacingOccurrences(of: #"<[^>]+>"#, with: " ", options: .regularExpression)
         text = text.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-        return decodeEntities(text).trimmingCharacters(in: .whitespacesAndNewlines)
+        return ArcanaCHM.decodeEntities(text).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func title(for url: URL, fallback: String) -> String {
@@ -71,7 +55,7 @@ final class SearchService {
         }
         let title = raw[range]
             .replacingOccurrences(of: #"</?title[^>]*>"#, with: "", options: [.regularExpression, .caseInsensitive])
-        return decodeEntities(String(title)).trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank() ?? fallback
+        return ArcanaCHM.decodeEntities(String(title)).trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank() ?? fallback
     }
 
     private func snippetAround(_ range: Range<String.Index>, in text: String) -> String {
@@ -87,29 +71,4 @@ final class SearchService {
         return String(path.dropFirst(rootPath.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     }
 
-    private func decodeEntities(_ text: String) -> String {
-        var result = text
-        let replacements = [
-            "&amp;": "&",
-            "&lt;": "<",
-            "&gt;": ">",
-            "&quot;": "\"",
-            "&#39;": "'",
-            "&nbsp;": " "
-        ]
-        for (key, value) in replacements {
-            result = result.replacingOccurrences(of: key, with: value)
-        }
-        return result
-    }
-}
-
-private extension String.Encoding {
-    static let gb18030 = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue)))
-}
-
-private extension String {
-    func nilIfBlank() -> String? {
-        trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : self
-    }
 }

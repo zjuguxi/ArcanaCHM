@@ -38,22 +38,6 @@ final class TOCParser {
         return nil
     }
 
-    private func readText(_ url: URL) -> String? {
-        let encodings: [String.Encoding] = [
-            .utf8,
-            .gb18030,
-            .windowsCP1252,
-            .isoLatin1
-        ]
-
-        for encoding in encodings {
-            if let text = try? String(contentsOf: url, encoding: encoding).nilIfEmpty() {
-                return text
-            }
-        }
-        return nil
-    }
-
     private func parseNestedItems(_ html: String) -> [TOCItem] {
         var tokenizer = HHCTokenizer(html)
         return parseList(&tokenizer)
@@ -94,7 +78,7 @@ final class TOCParser {
         guard let name, !name.isEmpty else {
             return nil
         }
-        return TOCItem(title: decodeEntities(name), path: SecurityPolicy.safeRelativePath(local))
+        return TOCItem(title: ArcanaCHM.decodeEntities(name), path: SecurityPolicy.safeRelativePath(local))
     }
 
     private func param(_ name: String, in object: String) -> String? {
@@ -107,22 +91,6 @@ final class TOCParser {
         let valueRange = match.range(at: 1)
         guard let swiftRange = Range(valueRange, in: object) else { return nil }
         return String(object[swiftRange])
-    }
-
-    private func decodeEntities(_ text: String) -> String {
-        var result = text
-        let replacements = [
-            "&amp;": "&",
-            "&lt;": "<",
-            "&gt;": ">",
-            "&quot;": "\"",
-            "&#39;": "'",
-            "&nbsp;": " "
-        ]
-        for (key, value) in replacements {
-            result = result.replacingOccurrences(of: key, with: value)
-        }
-        return result
     }
 
     private func fallbackTOC() -> [TOCItem] {
@@ -206,12 +174,4 @@ private struct HHCTokenizer {
     }
 }
 
-private extension String.Encoding {
-    static let gb18030 = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue)))
-}
 
-private extension String {
-    func nilIfEmpty() -> String? {
-        isEmpty ? nil : self
-    }
-}

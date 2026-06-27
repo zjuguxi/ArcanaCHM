@@ -184,8 +184,4 @@ private struct ReaderToolbarButton: View {
     }
 }
 
-private extension String {
-    func nilIfBlank() -> String? {
-        trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : self
-    }
-}
+
