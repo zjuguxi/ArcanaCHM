@@ -24,6 +24,8 @@
 "tab_switch" = "切换面板";
 
 /* TOC */
+"toc_search_placeholder" = "搜索目录...";
+"toc_no_results" = "无匹配目录项";
 "toc_help_expand" = "展开或收起：%@";
 "toc_help_open" = "打开章节：%@";
 

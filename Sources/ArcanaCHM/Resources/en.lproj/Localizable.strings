@@ -24,6 +24,8 @@
 "tab_switch" = "Switch Panel";
 
 /* TOC */
+"toc_search_placeholder" = "Filter TOC...";
+"toc_no_results" = "No matching items";
 "toc_help_expand" = "Expand or collapse: %@";
 "toc_help_open" = "Open chapter: %@";
 

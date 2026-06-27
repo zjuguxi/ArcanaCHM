@@ -132,12 +132,47 @@ struct TOCView: View {
     @EnvironmentObject private var locale: LocalizationService
     let items: [TOCItem]
     @Binding var expandedItems: Set<UUID>
+    @State private var tocQuery = ""
+
+    private var filteredItems: [TOCItem] {
+        filter(items: items, query: tocQuery)
+    }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(items) { item in
-                    TOCNodeRow(item: item, depth: 0, currentPath: reader.currentPath, expandedItems: $expandedItems)
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "line.3.horizontal.decrease")
+                    .foregroundStyle(.secondary)
+                TextField("toc_search_placeholder".loc, text: $tocQuery)
+                    .textFieldStyle(.plain)
+                    .help("toc_search_placeholder".loc)
+                if !tocQuery.isEmpty {
+                    Button {
+                        tocQuery = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("search_help_clear".loc)
+                }
+            }
+            .padding(10)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+            .padding([.horizontal, .top], 12)
+            .padding(.bottom, 6)
+
+            if filteredItems.isEmpty && !tocQuery.isEmpty {
+                Spacer()
+                ContentUnavailableView("toc_no_results".loc, systemImage: "list.bullet")
+                Spacer()
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(filteredItems) { item in
+                            TOCNodeRow(item: item, depth: 0, currentPath: reader.currentPath, expandedItems: $expandedItems)
+                        }
+                    }
                 }
             }
         }
@@ -152,21 +187,37 @@ struct TOCView: View {
 
     private func expandParentsForCurrentPath() {
         guard let currentPath = reader.currentPath else { return }
-        expandedItems.formUnion(parentIDs(containing: currentPath, in: items))
+        expandedItems.formUnion(parentIDs(containing: currentPath, in: filteredItems))
     }
 
     private func parentIDs(containing path: String, in items: [TOCItem]) -> Set<UUID> {
         for item in items {
-            if item.path == path {
-                return []
-            }
-
+            if item.path == path { return [] }
             let childMatches = parentIDs(containing: path, in: item.children)
             if !childMatches.isEmpty || item.children.contains(where: { $0.path == path }) {
                 return childMatches.union([item.id])
             }
         }
         return []
+    }
+
+    private func filter(items: [TOCItem], query: String) -> [TOCItem] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return items }
+        let lower = trimmed.lowercased()
+        return items.compactMap { item in
+            let matches = item.title.lowercased().contains(lower)
+            let filteredChildren = filter(items: item.children, query: query)
+            if matches || !filteredChildren.isEmpty {
+                return TOCItem(
+                    id: item.id,
+                    title: item.title,
+                    path: item.path,
+                    children: matches ? item.children : filteredChildren
+                )
+            }
+            return nil
+        }
     }
 }
 
