@@ -188,18 +188,6 @@ final class LibraryStore: ObservableObject {
         update(book)
     }
 
-    func addOrUpdateNote(path: String, title: String, body: String) {
-        guard var book = selectedBook else { return }
-        if let index = book.notes.firstIndex(where: { $0.path == path }) {
-            book.notes[index].title = title
-            book.notes[index].body = body
-            book.notes[index].updatedAt = Date()
-        } else {
-            book.notes.insert(DocumentNote(id: UUID(), title: title, body: body, path: path, createdAt: Date(), updatedAt: Date()), at: 0)
-        }
-        update(book)
-    }
-
     func remember(path: String) {
         guard var book = selectedBook, book.lastReadPath != path else { return }
         book.lastReadPath = path

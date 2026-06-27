@@ -240,28 +240,6 @@ final class LibraryStoreTests: XCTestCase {
         XCTAssertEqual(store.selectedBook?.bookmarks.count, 1)
     }
 
-    // MARK: - Notes
-
-    func testAddNote() {
-        let book = makeBook(title: "Notes")
-        store.books = [book]
-        store.selectedBookID = book.id
-        store.addOrUpdateNote(path: "p.html", title: "My Note", body: "Body text")
-        XCTAssertEqual(store.selectedBook?.notes.count, 1)
-        XCTAssertEqual(store.selectedBook?.notes[0].title, "My Note")
-    }
-
-    func testUpdateNote() {
-        let book = makeBook(title: "Notes")
-        store.books = [book]
-        store.selectedBookID = book.id
-        store.addOrUpdateNote(path: "p.html", title: "Original", body: "Body")
-        store.addOrUpdateNote(path: "p.html", title: "Updated", body: "New body")
-        XCTAssertEqual(store.selectedBook?.notes.count, 1)
-        XCTAssertEqual(store.selectedBook?.notes[0].title, "Updated")
-        XCTAssertEqual(store.selectedBook?.notes[0].body, "New body")
-    }
-
     // MARK: - Remember
 
     func testRemember() {

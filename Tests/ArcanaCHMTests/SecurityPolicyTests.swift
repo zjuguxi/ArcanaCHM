@@ -167,9 +167,6 @@ final class BookModelTests: XCTestCase {
             bookmarks: [
                 Bookmark(id: UUID(), title: "My Bookmark", path: "ch1.html", scrollY: 42, createdAt: Date())
             ],
-            notes: [
-                DocumentNote(id: UUID(), title: "Note 1", body: "Some note body", path: "ch1.html", createdAt: Date(), updatedAt: Date())
-            ],
             tags: ["important", "swift"],
             lastReadPath: "ch1.html",
             contentFingerprint: nil,
@@ -193,7 +190,6 @@ final class BookModelTests: XCTestCase {
         XCTAssertEqual(book.toc.first?.title, decoded.toc.first?.title)
         XCTAssertEqual(book.toc.first?.children.count, decoded.toc.first?.children.count)
         XCTAssertEqual(book.bookmarks.count, decoded.bookmarks.count)
-        XCTAssertEqual(book.notes.count, decoded.notes.count)
         XCTAssertEqual(book.tags, decoded.tags)
         XCTAssertEqual(book.lastReadPath, decoded.lastReadPath)
         XCTAssertEqual(book.isPinned, decoded.isPinned)
@@ -208,7 +204,6 @@ final class BookModelTests: XCTestCase {
         XCTAssertNil(book.homePath)
         XCTAssertTrue(book.toc.isEmpty)
         XCTAssertTrue(book.bookmarks.isEmpty)
-        XCTAssertTrue(book.notes.isEmpty)
         XCTAssertTrue(book.tags.isEmpty)
         XCTAssertNil(book.lastReadPath)
         XCTAssertNil(book.contentFingerprint)

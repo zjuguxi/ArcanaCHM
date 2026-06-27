@@ -8,7 +8,6 @@ struct Book: Identifiable, Codable, Hashable {
     var importedAt: Date
     var toc: [TOCItem]
     var bookmarks: [Bookmark]
-    var notes: [DocumentNote]
     var tags: [String]
     var lastReadPath: String?
     var contentFingerprint: String?
@@ -25,7 +24,6 @@ struct Book: Identifiable, Codable, Hashable {
             importedAt: Date(),
             toc: [],
             bookmarks: [],
-            notes: [],
             tags: [],
             lastReadPath: nil,
             contentFingerprint: nil,
@@ -55,15 +53,6 @@ struct Bookmark: Identifiable, Codable, Hashable {
     var path: String
     var scrollY: Double
     var createdAt: Date
-}
-
-struct DocumentNote: Identifiable, Codable, Hashable {
-    var id: UUID
-    var title: String
-    var body: String
-    var path: String
-    var createdAt: Date
-    var updatedAt: Date
 }
 
 struct SearchHit: Identifiable, Hashable {

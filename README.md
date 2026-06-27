@@ -26,7 +26,7 @@ A local-first macOS CHM reader. Native SwiftUI, offline by design.
 ```bash
 swift build                       # build executable
 Scripts/package_app.sh            # create dist/ArcanaCHM.app
-Scripts/package_dmg.sh 1.0.9      # create distributable DMG
+Scripts/package_dmg.sh 1.0.10      # create distributable DMG
 ```
 
 The app is ad-hoc signed during packaging to prevent macOS's misleading "damaged" alert.

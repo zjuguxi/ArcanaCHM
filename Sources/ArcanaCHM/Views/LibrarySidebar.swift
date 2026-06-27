@@ -38,7 +38,6 @@ struct LibrarySidebar: View {
                         }
                         HStack(spacing: 8) {
                             Label("\(book.bookmarks.count)", systemImage: "bookmark")
-                            Label("\(book.notes.count)", systemImage: "note.text")
                         }
                         .font(.caption)
                         .foregroundStyle(.secondary)
