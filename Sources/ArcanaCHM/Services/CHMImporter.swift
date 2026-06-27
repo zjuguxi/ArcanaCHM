@@ -9,7 +9,7 @@ enum CHMImportError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .extractorMissing:
-            return "No CHM extractor was found. Install 7-Zip with `brew install sevenzip` or The Unarchiver CLI with `brew install unar`."
+            return "无法找到 CHM 解压器。请尝试重新安装 App，或通过 `brew install sevenzip` 手动安装。"
         case .extractionFailed(let message):
             return "CHM extraction failed: \(message)"
         case .noReadableContent:
@@ -147,6 +147,10 @@ final class CHMImporter {
     }
 
     private func findExtractor() -> Extractor? {
+        if let bundled = Bundle.main.url(forResource: "7zz", withExtension: nil),
+           fileManager.isExecutableFile(atPath: bundled.path) {
+            return Extractor(url: bundled, kind: .sevenZip)
+        }
         let candidates: [Extractor] = [
             Extractor(url: URL(fileURLWithPath: "/opt/homebrew/bin/7zz"), kind: .sevenZip),
             Extractor(url: URL(fileURLWithPath: "/usr/local/bin/7zz"), kind: .sevenZip),
