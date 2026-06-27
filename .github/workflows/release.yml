@@ -12,7 +12,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: swift test
-      - run: swift build -c release
       - run: Scripts/package_app.sh
       - name: Create DMG
         run: |
