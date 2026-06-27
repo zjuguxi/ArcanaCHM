@@ -167,7 +167,6 @@ final class BookModelTests: XCTestCase {
             bookmarks: [
                 Bookmark(id: UUID(), title: "My Bookmark", path: "ch1.html", scrollY: 42, createdAt: Date())
             ],
-            tags: ["important", "swift"],
             lastReadPath: "ch1.html",
             contentFingerprint: nil,
             isPinned: true
@@ -190,7 +189,6 @@ final class BookModelTests: XCTestCase {
         XCTAssertEqual(book.toc.first?.title, decoded.toc.first?.title)
         XCTAssertEqual(book.toc.first?.children.count, decoded.toc.first?.children.count)
         XCTAssertEqual(book.bookmarks.count, decoded.bookmarks.count)
-        XCTAssertEqual(book.tags, decoded.tags)
         XCTAssertEqual(book.lastReadPath, decoded.lastReadPath)
         XCTAssertEqual(book.isPinned, decoded.isPinned)
     }
@@ -204,7 +202,6 @@ final class BookModelTests: XCTestCase {
         XCTAssertNil(book.homePath)
         XCTAssertTrue(book.toc.isEmpty)
         XCTAssertTrue(book.bookmarks.isEmpty)
-        XCTAssertTrue(book.tags.isEmpty)
         XCTAssertNil(book.lastReadPath)
         XCTAssertNil(book.contentFingerprint)
         XCTAssertNil(book.isPinned)
@@ -223,14 +220,6 @@ final class BookModelTests: XCTestCase {
         XCTAssertEqual(parent.children[0].path, "child.html")
     }
 
-    func testTOCItemOutlineChildren() {
-        let item = TOCItem(title: "No Children", path: "page.html")
-        XCTAssertNil(item.outlineChildren)
-
-        let parent = TOCItem(title: "Parent", path: "parent.html", children: [TOCItem(title: "Child", path: "child.html")])
-        XCTAssertNotNil(parent.outlineChildren)
-        XCTAssertEqual(parent.outlineChildren?.count, 1)
-    }
 }
 
 final class SearchHitTests: XCTestCase {

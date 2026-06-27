@@ -8,7 +8,6 @@ struct Book: Identifiable, Codable, Hashable {
     var importedAt: Date
     var toc: [TOCItem]
     var bookmarks: [Bookmark]
-    var tags: [String]
     var lastReadPath: String?
     var contentFingerprint: String?
     var isPinned: Bool?
@@ -24,7 +23,6 @@ struct Book: Identifiable, Codable, Hashable {
             importedAt: Date(),
             toc: [],
             bookmarks: [],
-            tags: [],
             lastReadPath: nil,
             contentFingerprint: nil,
             isPinned: nil
@@ -37,7 +35,6 @@ struct TOCItem: Identifiable, Codable, Hashable {
     var title: String
     var path: String?
     var children: [TOCItem]
-    var outlineChildren: [TOCItem]? { children.isEmpty ? nil : children }
 
     init(id: UUID = UUID(), title: String, path: String? = nil, children: [TOCItem] = []) {
         self.id = id

@@ -24,7 +24,7 @@
 ```bash
 swift build                       # 编译可执行文件
 Scripts/package_app.sh            # 生成 dist/ArcanaCHM.app
-Scripts/package_dmg.sh 1.0.10      # 生成可分发的 DMG
+Scripts/package_dmg.sh 1.0.11      # 生成可分发的 DMG
 ```
 
 打包过程中会自动对 app 进行 ad-hoc 签名，避免 macOS 误报「应用已损坏」。
