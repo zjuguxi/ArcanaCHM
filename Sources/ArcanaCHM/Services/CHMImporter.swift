@@ -21,7 +21,11 @@ enum CHMImportError: LocalizedError {
 }
 
 final class CHMImporter {
-    private let fileManager = FileManager.default
+    private let fileManager: FileManager
+
+    init(fileManager: FileManager = .default) {
+        self.fileManager = fileManager
+    }
 
     func importCHM(from sourceURL: URL) throws -> Book {
         try AppPaths.ensure()
@@ -146,8 +150,8 @@ final class CHMImporter {
         }
     }
 
-    private func findExtractor() -> Extractor? {
-        if let bundled = Bundle.main.url(forResource: "7zz", withExtension: nil),
+    func findExtractor(in bundle: Bundle = .main) -> Extractor? {
+        if let bundled = bundle.url(forResource: "7zz", withExtension: nil),
            fileManager.isExecutableFile(atPath: bundled.path) {
             return Extractor(url: bundled, kind: .sevenZip)
         }
@@ -163,7 +167,7 @@ final class CHMImporter {
     }
 }
 
-private struct Extractor {
+struct Extractor {
     enum Kind {
         case sevenZip
         case unar
