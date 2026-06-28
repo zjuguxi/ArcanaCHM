@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArcanaCHM — Local-first macOS CHM Reader</title>
+  <meta name="description" content="A local-first macOS CHM reader. Native SwiftUI, offline by design.">
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="apple-touch-icon" href="icon.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="ArcanaCHM — Local-first macOS CHM Reader">
+  <meta property="og:description" content="A local-first macOS CHM reader. Native SwiftUI, offline by design.">
+  <meta property="og:image" content="screenshot.png">
+  <meta property="og:url" content="https://zjuguxi.github.io/ArcanaCHM/">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="ArcanaCHM — Local-first macOS CHM Reader">
+  <meta name="twitter:description" content="A local-first macOS CHM reader. Native SwiftUI, offline by design.">
+  <meta name="twitter:image" content="screenshot.png">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="#">
+        <img src="icon.png" alt="ArcanaCHM icon" class="brand-icon">
+        <span class="brand-name">ArcanaCHM</span>
+      </a>
+      <nav class="site-nav">
+        <a href="#features" data-i18n="nav.features">Features</a>
+        <a href="#shortcuts" data-i18n="nav.shortcuts">Shortcuts</a>
+        <a href="#download" data-i18n="nav.download">Download</a>
+        <a href="https://github.com/zjuguxi/ArcanaCHM" class="gh-link" aria-label="GitHub">
+          <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+        </a>
+        <button id="lang-toggle" class="lang-toggle" aria-label="Toggle language">中文</button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container hero-inner">
+        <div class="hero-text">
+          <h1 class="hero-title" data-i18n="hero.title">ArcanaCHM</h1>
+          <p class="hero-tagline" data-i18n="hero.tagline">Local-first macOS CHM reader. Native SwiftUI, offline by design.</p>
+          <div class="hero-actions" id="download">
+            <a class="btn btn-primary" id="download-btn" href="https://github.com/zjuguxi/ArcanaCHM/releases/latest">
+              <span data-i18n="hero.download">Download</span>
+              <span class="version" id="version-tag">{{VERSION}}</span>
+            </a>
+            <span class="platform-tag" data-i18n="hero.platform">macOS 14+ · Universal</span>
+          </div>
+          <p class="hero-note" data-i18n="hero.note">Ad-hoc signed — no “damaged” alert. Drag to Applications to install.</p>
+        </div>
+        <div class="hero-screenshot">
+          <img src="screenshot.png" alt="ArcanaCHM screenshot" loading="lazy" decoding="async">
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="features">
+      <div class="container">
+        <h2 class="section-title" data-i18n="features.title">Features</h2>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <h3 data-i18n="features.threepane.title">Three-pane SwiftUI layout</h3>
+            <p data-i18n="features.threepane.desc">Sidebar TOC, content list, and WebKit reading surface — native macOS feel.</p>
+          </article>
+          <article class="feature-card">
+            <h3 data-i18n="features.import.title">Import .chm directly</h3>
+            <p data-i18n="features.import.desc">Extractor (7zz) is bundled inside the app — no Homebrew needed. Or import already-extracted folders.</p>
+          </article>
+          <article class="feature-card">
+            <h3 data-i18n="features.memory.title">Reading memory</h3>
+            <p data-i18n="features.memory.desc">Remembers the last page and scroll position per document (500ms debounced).</p>
+          </article>
+          <article class="feature-card">
+            <h3 data-i18n="features.search.title">Search & bookmarks</h3>
+            <p data-i18n="features.search.desc">Full-text local search, search history, and bookmarks per book.</p>
+          </article>
+          <article class="feature-card">
+            <h3 data-i18n="features.findinpage.title">Find in page (⌘F)</h3>
+            <p data-i18n="features.findinpage.desc">In-page search with match navigation, Enter key and prev/next buttons.</p>
+          </article>
+          <article class="feature-card">
+            <h3 data-i18n="features.bilingual.title">Bilingual UI</h3>
+            <p data-i18n="features.bilingual.desc">English / 中文 — follows system language by default, manual switch in toolbar.</p>
+          </article>
+          <article class="feature-card">
+            <h3 data-i18n="features.themes.title">Light & dark themes</h3>
+            <p data-i18n="features.themes.desc">Reading themes, font scaling, and focus mode for long sessions.</p>
+          </article>
+          <article class="feature-card">
+            <h3 data-i18n="features.backup.title">Automatic backup</h3>
+            <p data-i18n="features.backup.desc">library.json is backed up automatically — corrupt files are restored.</p>
+          </article>
+          <article class="feature-card">
+            <h3 data-i18n="features.sandbox.title">Path sandboxing</h3>
+            <p data-i18n="features.sandbox.desc">No access outside the app's own data directory. Your files stay local.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="shortcuts" class="shortcuts">
+      <div class="container">
+        <h2 class="section-title" data-i18n="shortcuts.title">Keyboard shortcuts</h2>
+        <table class="shortcut-table">
+          <tbody>
+            <tr><td data-i18n="shortcuts.importChm">Import a CHM file</td><td><kbd>⌘O</kbd></td></tr>
+            <tr><td data-i18n="shortcuts.importFolder">Import an extracted folder</td><td><kbd>⇧⌘O</kbd></td></tr>
+            <tr><td data-i18n="shortcuts.findInPage">Find in page</td><td><kbd>⌘F</kbd></td></tr>
+          </tbody>
+        </table>
+        <div class="tabs-hint">
+          <p><span data-i18n="shortcuts.tabDir">Directory tab</span><span data-i18n="shortcuts.tabDirDesc">: document navigation</span></p>
+          <p><span data-i18n="shortcuts.tabSearch">Search tab</span><span data-i18n="shortcuts.tabSearchDesc">: full-text local search</span></p>
+          <p><span data-i18n="shortcuts.tabFav">Favorites tab</span><span data-i18n="shortcuts.tabFavDesc">: bookmarks</span></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p><span data-i18n="footer.license">MIT License</span> · <a href="https://github.com/zjuguxi/ArcanaCHM">GitHub</a></p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var I18N = {
+        en: {
+          "nav.features": "Features",
+          "nav.shortcuts": "Shortcuts",
+          "nav.download": "Download",
+          "hero.title": "ArcanaCHM",
+          "hero.tagline": "Local-first macOS CHM reader. Native SwiftUI, offline by design.",
+          "hero.download": "Download",
+          "hero.platform": "macOS 14+ · Universal",
+          "hero.note": "Ad-hoc signed — no “damaged” alert. Drag to Applications to install.",
+          "features.title": "Features",
+          "features.threepane.title": "Three-pane SwiftUI layout",
+          "features.threepane.desc": "Sidebar TOC, content list, and WebKit reading surface — native macOS feel.",
+          "features.import.title": "Import .chm directly",
+          "features.import.desc": "Extractor (7zz) is bundled inside the app — no Homebrew needed. Or import already-extracted folders.",
+          "features.memory.title": "Reading memory",
+          "features.memory.desc": "Remembers the last page and scroll position per document (500ms debounced).",
+          "features.search.title": "Search & bookmarks",
+          "features.search.desc": "Full-text local search, search history, and bookmarks per book.",
+          "features.findinpage.title": "Find in page (⌘F)",
+          "features.findinpage.desc": "In-page search with match navigation, Enter key and prev/next buttons.",
+          "features.bilingual.title": "Bilingual UI",
+          "features.bilingual.desc": "English / 中文 — follows system language by default, manual switch in toolbar.",
+          "features.themes.title": "Light & dark themes",
+          "features.themes.desc": "Reading themes, font scaling, and focus mode for long sessions.",
+          "features.backup.title": "Automatic backup",
+          "features.backup.desc": "library.json is backed up automatically — corrupt files are restored.",
+          "features.sandbox.title": "Path sandboxing",
+          "features.sandbox.desc": "No access outside the app's own data directory. Your files stay local.",
+          "shortcuts.title": "Keyboard shortcuts",
+          "shortcuts.importChm": "Import a CHM file",
+          "shortcuts.importFolder": "Import an extracted folder",
+          "shortcuts.findInPage": "Find in page",
+          "shortcuts.tabDir": "Directory tab",
+          "shortcuts.tabDirDesc": ": document navigation",
+          "shortcuts.tabSearch": "Search tab",
+          "shortcuts.tabSearchDesc": ": full-text local search",
+          "shortcuts.tabFav": "Favorites tab",
+          "shortcuts.tabFavDesc": ": bookmarks",
+          "footer.license": "MIT License"
+        },
+        zh: {
+          "nav.features": "功能",
+          "nav.shortcuts": "快捷键",
+          "nav.download": "下载",
+          "hero.title": "ArcanaCHM",
+          "hero.tagline": "本地优先的 macOS CHM 阅读器。原生 SwiftUI，离线运行。",
+          "hero.download": "下载",
+          "hero.platform": "macOS 14+ · 通用",
+          "hero.note": "Ad-hoc 签名 —— 无「应用已损坏」误报。拖到「应用程序」即可安装。",
+          "features.title": "功能",
+          "features.threepane.title": "三栏 SwiftUI 布局",
+          "features.threepane.desc": "侧边目录、内容列表、WebKit 阅读区 —— 原生 macOS 体验。",
+          "features.import.title": "直接导入 .chm",
+          "features.import.desc": "解压工具（7zz）内置在 app 中 —— 无需安装 Homebrew。也支持导入已解压的文件夹。",
+          "features.memory.title": "阅读记忆",
+          "features.memory.desc": "每本书记住最后页面与滚动位置（500ms 防抖）。",
+          "features.search.title": "搜索与书签",
+          "features.search.desc": "全文本地搜索、搜索历史、以及每本书的书签。",
+          "features.findinpage.title": "页面内查找（⌘F）",
+          "features.findinpage.desc": "页内搜索支持匹配导航、回车键及前后按钮。",
+          "features.bilingual.title": "双语界面",
+          "features.bilingual.desc": "English / 中文 —— 默认跟随系统，可在工具栏手动切换。",
+          "features.themes.title": "浅色 / 深色主题",
+          "features.themes.desc": "阅读主题、字体缩放、专注模式，适合长时间阅读。",
+          "features.backup.title": "自动备份",
+          "features.backup.desc": "library.json 自动备份 —— 文件损坏时自动恢复。",
+          "features.sandbox.title": "路径沙箱",
+          "features.sandbox.desc": "不会访问 app 数据目录以外的文件。你的文件始终在本地。",
+          "shortcuts.title": "键盘快捷键",
+          "shortcuts.importChm": "导入 CHM 文件",
+          "shortcuts.importFolder": "导入已解压的文件夹",
+          "shortcuts.findInPage": "页面内查找",
+          "shortcuts.tabDir": "目录标签页",
+          "shortcuts.tabDirDesc": "：文档导航",
+          "shortcuts.tabSearch": "搜索标签页",
+          "shortcuts.tabSearchDesc": "：全文本地搜索",
+          "shortcuts.tabFav": "收藏标签页",
+          "shortcuts.tabFavDesc": "：书签",
+          "footer.license": "MIT 许可证"
+        }
+      };
+
+      function applyLang(lang) {
+        var dict = I18N[lang] || I18N.en;
+        document.documentElement.lang = lang;
+        document.querySelectorAll('[data-i18n]').forEach(function (el) {
+          var key = el.getAttribute('data-i18n');
+          if (dict[key] != null) el.textContent = dict[key];
+        });
+        var toggle = document.getElementById('lang-toggle');
+        if (toggle) toggle.textContent = lang === 'en' ? '中文' : 'EN';
+      }
+
+      function currentLang() {
+        var stored = null;
+        try { stored = localStorage.getItem('lang'); } catch (e) {}
+        if (stored === 'en' || stored === 'zh') return stored;
+        return (navigator.language || '').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en';
+      }
+
+      var lang = currentLang();
+      applyLang(lang);
+
+      var toggle = document.getElementById('lang-toggle');
+      if (toggle) {
+        toggle.addEventListener('click', function () {
+          lang = lang === 'en' ? 'zh' : 'en';
+          try { localStorage.setItem('lang', lang); } catch (e) {}
+          applyLang(lang);
+        });
+      }
+
+      var urlLang = new URLSearchParams(window.location.search).get('lang');
+      if (urlLang === 'en' || urlLang === 'zh') {
+        lang = urlLang;
+        try { localStorage.setItem('lang', lang); } catch (e) {}
+        applyLang(lang);
+      }
+    })();
+  </script>
+</body>
+</html>

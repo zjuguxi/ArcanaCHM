@@ -1,0 +1,73 @@
+name: Deploy Docs to Pages
+
+on:
+  push:
+    branches: master
+    paths:
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve latest version
+        id: ver
+        run: |
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$TAG" ]; then
+            echo "No git tag found; aborting." >&2
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          DMG_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/ArcanaCHM-${VERSION}.dmg"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "dmg_url=${DMG_URL}" >> "$GITHUB_OUTPUT"
+          echo "Resolved: ${VERSION} -> ${DMG_URL}"
+
+      - name: Inject version into index.html
+        run: |
+          FILE="docs/index.html"
+          python3 - <<PY
+          import re, pathlib
+          p = pathlib.Path("${FILE}")
+          s = p.read_text(encoding="utf-8")
+          s = s.replace("{{VERSION}}", "${{ steps.ver.outputs.version }}")
+          # Point download button to the exact DMG asset for this version.
+          s = re.sub(
+              r'(<a[^>]*id="download-btn"[^>]*href=")[^"]*(")',
+              r'\1${{ steps.ver.outputs.dmg_url }}\2',
+              s,
+          )
+          p.write_text(s, encoding="utf-8")
+          print("Injected version ${{ steps.ver.outputs.version }} and DMG URL")
+          PY
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
