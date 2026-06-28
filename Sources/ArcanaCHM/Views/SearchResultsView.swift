@@ -11,9 +11,7 @@ struct SearchResultsView: View {
 
     var body: some View {
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.count < 2 {
-            SearchHistoryView(history: history, runHistoricalSearch: runHistoricalSearch, deleteHistoryItem: deleteHistoryItem)
-        } else if let completed = lastCompletedSearch, completed.query == trimmed {
+        if let completed = lastCompletedSearch, completed.query == trimmed {
             if completed.hits.isEmpty {
                 ContentUnavailableView("search_no_results".loc, systemImage: "magnifyingglass")
             } else {
@@ -38,7 +36,7 @@ struct SearchResultsView: View {
                 .listStyle(.inset)
             }
         } else {
-            ContentUnavailableView("search_no_results".loc, systemImage: "magnifyingglass")
+            SearchHistoryView(history: history, runHistoricalSearch: runHistoricalSearch, deleteHistoryItem: deleteHistoryItem)
         }
     }
 

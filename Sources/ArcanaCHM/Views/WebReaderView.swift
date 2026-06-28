@@ -116,6 +116,7 @@ struct WebReaderView: NSViewRepresentable {
         body font, body span, body div, body p, body li, body dd, body dt, body td, body th {
           font-size: 1rem !important;
           font-family: inherit !important;
+          color: inherit !important;
         }
         h1, h2, h3, h4 {
           color: var(--reader-heading) !important;
