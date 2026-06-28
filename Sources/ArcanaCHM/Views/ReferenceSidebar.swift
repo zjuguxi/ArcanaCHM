@@ -6,7 +6,7 @@ struct ReferenceSidebar: View {
     @EnvironmentObject private var locale: LocalizationService
 
     @Binding var searchText: String
-    @Binding var searchHits: [SearchHit]
+    let lastCompletedSearch: (query: String, hits: [SearchHit])?
     @Binding var isSearching: Bool
     @Binding var selectedTab: String
     let searchHistory: [String]
@@ -72,31 +72,43 @@ struct ReferenceSidebar: View {
                     switch selectedTab {
                     case "search":
                         SearchResultsView(
-                            query: searchText,
-                            hits: searchHits,
+                            searchText: searchText,
+                            lastCompletedSearch: lastCompletedSearch,
                             history: searchHistory,
                             runHistoricalSearch: runHistoricalSearch,
                             deleteHistoryItem: deleteHistoryItem
                         )
+                        .transition(.opacity)
+                        .id("search")
                     case "favorites":
                         FavoritesPanel(book: book)
+                            .transition(.opacity)
+                            .id("favorites")
                     default:
                         TOCView(items: book.toc, expandedItems: $expandedTOCItems)
+                            .transition(.opacity)
+                            .id("toc")
                     }
                 } else {
                     switch selectedTab {
                     case "search":
                         SearchResultsView(
-                            query: searchText,
-                            hits: searchHits,
+                            searchText: searchText,
+                            lastCompletedSearch: lastCompletedSearch,
                             history: searchHistory,
                             runHistoricalSearch: runHistoricalSearch,
                             deleteHistoryItem: deleteHistoryItem
                         )
+                        .transition(.opacity)
+                        .id("search")
                     case "favorites":
                         emptyFavoritesView
+                            .transition(.opacity)
+                            .id("favorites")
                     default:
                         TOCView(items: [], expandedItems: $expandedTOCItems)
+                            .transition(.opacity)
+                            .id("toc")
                     }
                 }
             }

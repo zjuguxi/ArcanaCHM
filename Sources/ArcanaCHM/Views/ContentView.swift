@@ -6,7 +6,7 @@ struct ContentView: View {
     @EnvironmentObject private var locale: LocalizationService
 
     @State private var searchText = ""
-    @State private var searchHits: [SearchHit] = []
+    @State private var lastCompletedSearch: (query: String, hits: [SearchHit])?
     @State private var isSearching = false
     @State private var selectedTab = "toc"
     @AppStorage("ArcanaCHM.searchHistory") private var searchHistoryStorage = "[]"
@@ -33,7 +33,7 @@ struct ContentView: View {
         } content: {
             ReferenceSidebar(
                 searchText: $searchText,
-                searchHits: $searchHits,
+                lastCompletedSearch: lastCompletedSearch,
                 isSearching: $isSearching,
                 selectedTab: $selectedTab,
                 searchHistory: searchHistory,
@@ -105,7 +105,8 @@ struct ContentView: View {
         reader.searchQuery = query
         rememberSearch(query)
         Task {
-            searchHits = await library.search(query, in: book)
+            let hits = await library.search(query, in: book)
+            lastCompletedSearch = (query, hits)
             isSearching = false
             selectedTab = "search"
         }

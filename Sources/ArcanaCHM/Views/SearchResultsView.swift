@@ -3,38 +3,42 @@ import SwiftUI
 struct SearchResultsView: View {
     @EnvironmentObject private var reader: ReaderStore
     @EnvironmentObject private var locale: LocalizationService
-    let query: String
-    let hits: [SearchHit]
+    let searchText: String
+    let lastCompletedSearch: (query: String, hits: [SearchHit])?
     let history: [String]
     var runHistoricalSearch: (String) -> Void
     var deleteHistoryItem: (String) -> Void
 
     var body: some View {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.count < 2 {
             SearchHistoryView(history: history, runHistoricalSearch: runHistoricalSearch, deleteHistoryItem: deleteHistoryItem)
-        } else if hits.isEmpty {
-            ContentUnavailableView("search_no_results".loc, systemImage: "magnifyingglass")
-        } else {
-            List(hits) { hit in
-                Button {
-                    reader.open(hit.path, searchQuery: trimmed)
-                } label: {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(highlighted(hit.title, query: trimmed, baseSize: 13))
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.primary)
-                        Text(highlighted(hit.snippet, query: trimmed, baseSize: 12))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(3)
+        } else if let completed = lastCompletedSearch, completed.query == trimmed {
+            if completed.hits.isEmpty {
+                ContentUnavailableView("search_no_results".loc, systemImage: "magnifyingglass")
+            } else {
+                List(completed.hits) { hit in
+                    Button {
+                        reader.open(hit.path, searchQuery: trimmed)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(highlighted(hit.title, query: trimmed, baseSize: 13))
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.primary)
+                            Text(highlighted(hit.snippet, query: trimmed, baseSize: 12))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(3)
+                        }
+                        .padding(.vertical, 5)
                     }
-                    .padding(.vertical, 5)
+                    .buttonStyle(.plain)
+                    .help("search_help_open_result".loc)
                 }
-                .buttonStyle(.plain)
-                .help("search_help_open_result".loc)
+                .listStyle(.inset)
             }
-            .listStyle(.inset)
+        } else {
+            ContentUnavailableView("search_no_results".loc, systemImage: "magnifyingglass")
         }
     }
 
