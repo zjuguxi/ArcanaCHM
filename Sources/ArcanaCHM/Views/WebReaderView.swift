@@ -29,7 +29,20 @@ struct WebReaderView: NSViewRepresentable {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
-        configuration.userContentController.add(context.coordinator, name: "reader")
+
+        let userContentController = configuration.userContentController
+
+        let csp = """
+        var meta = document.createElement('meta');
+        meta.httpEquiv = 'Content-Security-Policy';
+        meta.content = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data: file:; script-src 'none'";
+        document.head.insertBefore(meta, document.head.firstChild);
+        """
+        userContentController.addUserScript(WKUserScript(source: csp, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+
+        userContentController.addUserScript(WKUserScript(source: Self.appJSContent, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+
+        userContentController.add(context.coordinator, name: "reader")
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
@@ -183,150 +196,139 @@ struct WebReaderView: NSViewRepresentable {
         \(spotlightMode ? "body > * { max-width: 760px !important; margin-left: auto !important; margin-right: auto !important; }" : "")
         """
 
+        let query = normalizedSearchQuery
         let script = """
         (function() {
-          let style = document.getElementById('arcana-reader-style');
+          var style = document.getElementById('arcana-reader-style');
           if (!style) {
             style = document.createElement('style');
             style.id = 'arcana-reader-style';
             document.head.appendChild(style);
           }
           style.textContent = \(css.javascriptStringLiteral);
-          const query = \(normalizedSearchQuery.javascriptStringLiteral);
-          const scrollToMatch = \(scrollToMatch ? "true" : "false");
-          function clearHighlights() {
-            document.querySelectorAll('mark.arcana-search-hit').forEach(function(mark) {
-              const text = document.createTextNode(mark.textContent || '');
-              mark.replaceWith(text);
-              if (text.parentNode) text.parentNode.normalize();
-            });
-          }
-          function highlightQuery(value) {
-            clearHighlights();
-            if (!value || value.length < 2) return;
-            const needle = value.toLocaleLowerCase();
-            const walker = document.createTreeWalker(
-              document.body,
-              NodeFilter.SHOW_TEXT,
-              {
-                acceptNode: function(node) {
-                  const parent = node.parentElement;
-                  if (!parent) return NodeFilter.FILTER_REJECT;
-                  if (['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'MARK'].includes(parent.tagName)) {
-                    return NodeFilter.FILTER_REJECT;
-                  }
-                  return (node.nodeValue || '').toLocaleLowerCase().includes(needle) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
-                }
-              }
-            );
-            const nodes = [];
-            while (walker.nextNode()) nodes.push(walker.currentNode);
-            nodes.forEach(function(node) {
-              const text = node.nodeValue || '';
-              const lower = text.toLocaleLowerCase();
-              const fragment = document.createDocumentFragment();
-              let lastIndex = 0;
-              let matchIndex = lower.indexOf(needle);
-              while (matchIndex !== -1) {
-                if (matchIndex > lastIndex) {
-                  fragment.appendChild(document.createTextNode(text.slice(lastIndex, matchIndex)));
-                }
-                const mark = document.createElement('mark');
-                mark.className = 'arcana-search-hit';
-                mark.textContent = text.slice(matchIndex, matchIndex + value.length);
-                fragment.appendChild(mark);
-                lastIndex = matchIndex + value.length;
-                matchIndex = lower.indexOf(needle, lastIndex);
-              }
-              if (lastIndex < text.length) {
-                fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
-              }
-              node.replaceWith(fragment);
-            });
-            if (scrollToMatch) {
-              const first = document.querySelector('mark.arcana-search-hit');
-              if (first) first.scrollIntoView({ block: 'center' });
-            }
-          }
-          highlightQuery(query);
-          window.__arcanaFindInPage = function(value) {
-            document.querySelectorAll('mark.arcana-find-hit, mark.arcana-find-current').forEach(function(m) {
-              var t = document.createTextNode(m.textContent || '');
-              m.replaceWith(t);
-              if (t.parentNode) t.parentNode.normalize();
-            });
-            if (!value || value.length < 1) {
-              window.webkit.messageHandlers.reader.postMessage({ type: 'find', count: 0, current: 0 });
-              return;
-            }
-            var needle = value.toLocaleLowerCase();
-            var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
-              acceptNode: function(node) {
-                var p = node.parentElement;
-                if (!p || ['SCRIPT','STYLE','TEXTAREA','INPUT','MARK'].includes(p.tagName)) return NodeFilter.FILTER_REJECT;
-                return (node.nodeValue || '').toLocaleLowerCase().includes(needle) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
-              }
-            });
-            var nodes = [];
-            while (walker.nextNode()) nodes.push(walker.currentNode);
-            var idx = 0;
-            nodes.forEach(function(node) {
-              var text = node.nodeValue || '';
-              var lower = text.toLocaleLowerCase();
-              var frag = document.createDocumentFragment();
-              var last = 0;
-              var pos = lower.indexOf(needle);
-              while (pos !== -1) {
-                if (pos > last) frag.appendChild(document.createTextNode(text.slice(last, pos)));
-                var mark = document.createElement('mark');
-                mark.className = 'arcana-find-hit';
-                mark.dataset.fi = idx;
-                mark.textContent = text.slice(pos, pos + value.length);
-                frag.appendChild(mark);
-                last = pos + value.length;
-                pos = lower.indexOf(needle, last);
-                idx++;
-              }
-              if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
-              node.replaceWith(frag);
-            });
-            window.__arcanaFindCount = idx;
-            window.__arcanaFindCurrent = 0;
-            var first = document.querySelector('mark.arcana-find-hit');
-            if (first) { first.classList.add('arcana-find-current'); first.scrollIntoView({ block: 'center' }); }
-            window.webkit.messageHandlers.reader.postMessage({ type: 'find', count: idx, current: idx > 0 ? 1 : 0 });
-          };
-          window.__arcanaNavigateFind = function(dir) {
-            var marks = document.querySelectorAll('mark.arcana-find-hit');
-            if (!marks.length) return;
-            var cur = window.__arcanaFindCurrent || 0;
-            if (cur < 0 || cur >= marks.length) cur = 0;
-            var next = dir === 'next' ? cur + 1 : cur - 1;
-            if (next >= marks.length) next = 0;
-            if (next < 0) next = marks.length - 1;
-            document.querySelectorAll('mark.arcana-find-current').forEach(function(m) { m.classList.remove('arcana-find-current'); });
-            marks[next].classList.add('arcana-find-current');
-            marks[next].scrollIntoView({ block: 'center' });
-            window.__arcanaFindCurrent = next;
-            window.webkit.messageHandlers.reader.postMessage({ type: 'find', count: marks.length, current: next + 1 });
-          };
-          if (!window.__arcanaScrollHooked) {
-            window.__arcanaScrollHooked = true;
-            let last = 0;
-            window.addEventListener('scroll', function() {
-              const now = Date.now();
-              if (now - last > 120) {
-                window.webkit.messageHandlers.reader.postMessage({ type: 'scroll', y: window.scrollY });
-                last = now;
-              }
-            }, { passive: true });
-          }
-          window.webkit.messageHandlers.reader.postMessage({ type: 'title', title: document.title || '' });
-          \(scrollY.map { y in "if (!scrollToMatch) requestAnimationFrame(function(){ window.scrollTo(0, \(Int(max(0, y)))); });" } ?? "")
+          window.__arcanaHighlightQuery(\(query.javascriptStringLiteral), \(scrollToMatch ? "true" : "false"));
+          \(scrollY.map { y in "requestAnimationFrame(function(){ window.scrollTo(0, \(Int(max(0, y)))); });" } ?? "")
         })();
         """
         webView.evaluateJavaScript(script)
     }
+
+    private static let appJSContent = """
+    window.__arcanaHighlightQuery = function(value, scrollToMatch) {
+      document.querySelectorAll('mark.arcana-search-hit').forEach(function(mark) {
+        var text = document.createTextNode(mark.textContent || '');
+        mark.replaceWith(text);
+        if (text.parentNode) text.parentNode.normalize();
+      });
+      if (!value || value.length < 2) return;
+      var needle = value.toLocaleLowerCase();
+      var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(node) {
+          var parent = node.parentElement;
+          if (!parent) return NodeFilter.FILTER_REJECT;
+          if (['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'MARK'].includes(parent.tagName)) return NodeFilter.FILTER_REJECT;
+          return (node.nodeValue || '').toLocaleLowerCase().includes(needle) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+        }
+      });
+      var nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      nodes.forEach(function(node) {
+        var text = node.nodeValue || '';
+        var lower = text.toLocaleLowerCase();
+        var fragment = document.createDocumentFragment();
+        var lastIndex = 0;
+        var matchIndex = lower.indexOf(needle);
+        while (matchIndex !== -1) {
+          if (matchIndex > lastIndex) fragment.appendChild(document.createTextNode(text.slice(lastIndex, matchIndex)));
+          var mark = document.createElement('mark');
+          mark.className = 'arcana-search-hit';
+          mark.textContent = text.slice(matchIndex, matchIndex + value.length);
+          fragment.appendChild(mark);
+          lastIndex = matchIndex + value.length;
+          matchIndex = lower.indexOf(needle, lastIndex);
+        }
+        if (lastIndex < text.length) fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+        node.replaceWith(fragment);
+      });
+      if (scrollToMatch) {
+        var first = document.querySelector('mark.arcana-search-hit');
+        if (first) first.scrollIntoView({ block: 'center' });
+      }
+    };
+    window.__arcanaFindInPage = function(value) {
+      document.querySelectorAll('mark.arcana-find-hit, mark.arcana-find-current').forEach(function(m) {
+        var t = document.createTextNode(m.textContent || '');
+        m.replaceWith(t);
+        if (t.parentNode) t.parentNode.normalize();
+      });
+      if (!value || value.length < 1) {
+        window.webkit.messageHandlers.reader.postMessage({ type: 'find', count: 0, current: 0 });
+        return;
+      }
+      var needle = value.toLocaleLowerCase();
+      var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(node) {
+          var p = node.parentElement;
+          if (!p || ['SCRIPT','STYLE','TEXTAREA','INPUT','MARK'].includes(p.tagName)) return NodeFilter.FILTER_REJECT;
+          return (node.nodeValue || '').toLocaleLowerCase().includes(needle) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+        }
+      });
+      var nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      var idx = 0;
+      nodes.forEach(function(node) {
+        var text = node.nodeValue || '';
+        var lower = text.toLocaleLowerCase();
+        var frag = document.createDocumentFragment();
+        var last = 0;
+        var pos = lower.indexOf(needle);
+        while (pos !== -1) {
+          if (pos > last) frag.appendChild(document.createTextNode(text.slice(last, pos)));
+          var mark = document.createElement('mark');
+          mark.className = 'arcana-find-hit';
+          mark.dataset.fi = idx;
+          mark.textContent = text.slice(pos, pos + value.length);
+          frag.appendChild(mark);
+          last = pos + value.length;
+          pos = lower.indexOf(needle, last);
+          idx++;
+        }
+        if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+        node.replaceWith(frag);
+      });
+      window.__arcanaFindCount = idx;
+      window.__arcanaFindCurrent = 0;
+      var first = document.querySelector('mark.arcana-find-hit');
+      if (first) { first.classList.add('arcana-find-current'); first.scrollIntoView({ block: 'center' }); }
+      window.webkit.messageHandlers.reader.postMessage({ type: 'find', count: idx, current: idx > 0 ? 1 : 0 });
+    };
+    window.__arcanaNavigateFind = function(dir) {
+      var marks = document.querySelectorAll('mark.arcana-find-hit');
+      if (!marks.length) return;
+      var cur = window.__arcanaFindCurrent || 0;
+      if (cur < 0 || cur >= marks.length) cur = 0;
+      var next = dir === 'next' ? cur + 1 : cur - 1;
+      if (next >= marks.length) next = 0;
+      if (next < 0) next = marks.length - 1;
+      document.querySelectorAll('mark.arcana-find-current').forEach(function(m) { m.classList.remove('arcana-find-current'); });
+      marks[next].classList.add('arcana-find-current');
+      marks[next].scrollIntoView({ block: 'center' });
+      window.__arcanaFindCurrent = next;
+      window.webkit.messageHandlers.reader.postMessage({ type: 'find', count: marks.length, current: next + 1 });
+    };
+    if (!window.__arcanaScrollHooked) {
+      window.__arcanaScrollHooked = true;
+      var last = 0;
+      window.addEventListener('scroll', function() {
+        var now = Date.now();
+        if (now - last > 120) {
+          window.webkit.messageHandlers.reader.postMessage({ type: 'scroll', y: window.scrollY });
+          last = now;
+        }
+      }, { passive: true });
+    }
+    window.webkit.messageHandlers.reader.postMessage({ type: 'title', title: document.title || '' });
+    """
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var parent: WebReaderView
@@ -346,6 +348,18 @@ struct WebReaderView: NSViewRepresentable {
             [
               {
                 "trigger": { "url-filter": "^https?://.*" },
+                "action": { "type": "block" }
+              },
+              {
+                "trigger": { "url-filter": "^data:.*" },
+                "action": { "type": "block" }
+              },
+              {
+                "trigger": { "url-filter": "^blob:.*" },
+                "action": { "type": "block" }
+              },
+              {
+                "trigger": { "url-filter": ".*", "resource-type": ["script"] },
                 "action": { "type": "block" }
               }
             ]
@@ -388,6 +402,12 @@ struct WebReaderView: NSViewRepresentable {
                 return
             }
 
+            let scheme = url.scheme?.lowercased() ?? ""
+            if ["data", "blob", "javascript"].contains(scheme) {
+                decisionHandler(.cancel, preferences)
+                return
+            }
+
             guard url.isFileURL else {
                 decisionHandler(.cancel, preferences)
                 return
@@ -409,17 +429,21 @@ struct WebReaderView: NSViewRepresentable {
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.frameInfo.isMainFrame else { return }
             guard let body = message.body as? [String: Any],
                   let type = body["type"] as? String
             else {
                 return
             }
 
-            if type == "scroll", let y = body["y"] as? Double {
+            if type == "scroll", let y = body["y"] as? Double, y >= 0, y.isFinite {
                 parent.onScroll(parent.path, y)
             } else if type == "title", let title = body["title"] as? String {
                 parent.onTitle(title)
-            } else if type == "find", let count = body["count"] as? Int, let current = body["current"] as? Int {
+            } else if type == "find",
+                      let count = body["count"] as? Int,
+                      let current = body["current"] as? Int,
+                      count >= 0, current >= 0, count <= 100000, current <= count {
                 parent.onFindResults(current, count)
             }
         }
