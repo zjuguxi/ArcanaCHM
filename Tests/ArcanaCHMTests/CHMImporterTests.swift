@@ -41,6 +41,15 @@ final class CHMImporterTests: XCTestCase {
         }
     }
 
+    // MARK: - Helpers
+
+    /// Import and then populate (parse TOC + fingerprint) to get a fully built book.
+    private func importAndPopulate(from source: URL) throws -> Book {
+        var book = try importer.importExtractedFolder(from: source)
+        CHMImporter.populateBook(&book)
+        return book
+    }
+
     // MARK: - importExtractedFolder — happy paths
 
     func testImportExtractedFolder_withHHC() throws {
@@ -59,7 +68,7 @@ final class CHMImporterTests: XCTestCase {
         ])
         try AppPaths.ensure()
 
-        let book = try importer.importExtractedFolder(from: source)
+        let book = try importAndPopulate(from: source)
         addTeardownBlock { [book] in self.cleanUp(book: book) }
 
         XCTAssertEqual(book.title, source.lastPathComponent)
@@ -69,7 +78,6 @@ final class CHMImporterTests: XCTestCase {
         XCTAssertEqual(book.toc[1].title, "Chapter 2")
         XCTAssertEqual(book.homePath, "ch1.html")
         XCTAssertEqual(book.lastReadPath, book.homePath)
-        XCTAssertNotNil(book.contentFingerprint)
         // files were copied into books directory
         XCTAssertTrue(SecurityPolicy.isInsideAppBooks(book.rootURL))
         XCTAssertTrue(FileManager.default.fileExists(atPath: book.rootURL.appendingPathComponent("ch1.html").path))
@@ -83,7 +91,7 @@ final class CHMImporterTests: XCTestCase {
         ])
         try AppPaths.ensure()
 
-        let book = try importer.importExtractedFolder(from: source)
+        let book = try importAndPopulate(from: source)
         addTeardownBlock { [book] in self.cleanUp(book: book) }
 
         // Fallback TOC is sorted alphabetically
@@ -99,7 +107,7 @@ final class CHMImporterTests: XCTestCase {
         ])
         try AppPaths.ensure()
 
-        let book = try importer.importExtractedFolder(from: source)
+        let book = try importAndPopulate(from: source)
         addTeardownBlock { [book] in self.cleanUp(book: book) }
 
         XCTAssertEqual(book.toc.count, 1)
@@ -119,7 +127,7 @@ final class CHMImporterTests: XCTestCase {
         ])
         try AppPaths.ensure()
 
-        let book = try importer.importExtractedFolder(from: source)
+        let book = try importAndPopulate(from: source)
         addTeardownBlock { [book] in self.cleanUp(book: book) }
 
         XCTAssertEqual(book.toc.count, 1)
@@ -136,12 +144,17 @@ final class CHMImporterTests: XCTestCase {
         ])
         try AppPaths.ensure()
 
-        let book1 = try importer.importExtractedFolder(from: source)
+        var book1 = try importer.importExtractedFolder(from: source)
         addTeardownBlock { [book1] in self.cleanUp(book: book1) }
 
-        let book2 = try importer.importExtractedFolder(from: source)
+        var book2 = try importer.importExtractedFolder(from: source)
         addTeardownBlock { [book2] in self.cleanUp(book: book2) }
 
+        // Populate to compute fingerprints
+        CHMImporter.populateBook(&book1)
+        CHMImporter.populateBook(&book2)
+
+        XCTAssertNotNil(book1.contentFingerprint)
         XCTAssertEqual(book1.contentFingerprint, book2.contentFingerprint,
                        "identical sources must produce the same fingerprint")
     }

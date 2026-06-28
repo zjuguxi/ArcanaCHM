@@ -12,7 +12,9 @@ enum ContentFingerprint {
             return nil
         }
 
-        var urls: [URL] = []
+        var hhcData: Data?
+        var fileCount = 0
+
         for case let url as URL in enumerator {
             guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]),
                   values.isRegularFile == true
@@ -21,28 +23,19 @@ enum ContentFingerprint {
             else {
                 continue
             }
-            urls.append(url)
+            fileCount += 1
+            if url.pathExtension.lowercased() == "hhc",
+               let data = try? Data(contentsOf: url) {
+                hhcData = data
+            }
         }
 
         var hasher = SHA256()
-        for url in urls.sorted(by: { relativePath($0, root: rootURL) < relativePath($1, root: rootURL) }) {
-            let relative = relativePath(url, root: rootURL)
-            hasher.update(data: Data(relative.utf8))
-            hasher.update(data: Data([0]))
-            guard let data = try? Data(contentsOf: url) else {
-                continue
-            }
-            hasher.update(data: data)
-            hasher.update(data: Data([0]))
+        withUnsafeBytes(of: fileCount) { hasher.update(data: $0) }
+        if let hhcData {
+            hasher.update(data: hhcData)
         }
 
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
-    }
-
-    private static func relativePath(_ url: URL, root: URL) -> String {
-        let rootPath = root.standardizedFileURL.path
-        let path = url.standardizedFileURL.path
-        guard path.hasPrefix(rootPath) else { return url.lastPathComponent }
-        return String(path.dropFirst(rootPath.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     }
 }

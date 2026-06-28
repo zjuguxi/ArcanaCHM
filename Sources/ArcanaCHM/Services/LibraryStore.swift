@@ -82,17 +82,28 @@ final class LibraryStore: ObservableObject {
 
     private func refreshImportedTOCs() {
         var changed = false
-        for index in books.indices where books[index].toc.isEmpty {
-            let parser = TOCParser(rootURL: books[index].rootURL)
+        for index in books.indices {
+            let book = books[index]
+            let needsReparse = book.toc.isEmpty || anyNilPath(in: book.toc)
+            guard needsReparse else { continue }
+            let parser = TOCParser(rootURL: book.rootURL)
             let toc = parser.parse()
             guard !toc.isEmpty else { continue }
             books[index].toc = toc
-            books[index].homePath = parser.homePath(from: toc) ?? books[index].homePath
+            books[index].homePath = parser.homePath(from: toc) ?? book.homePath
             changed = true
         }
         if changed {
             save()
         }
+    }
+
+    private func anyNilPath(in items: [TOCItem]) -> Bool {
+        for item in items {
+            if item.path == nil { return true }
+            if anyNilPath(in: item.children) { return true }
+        }
+        return false
     }
 
     private func refreshContentFingerprints() {
@@ -136,6 +147,7 @@ final class LibraryStore: ObservableObject {
                 let book = try CHMImporter().importCHM(from: url)
                 DispatchQueue.main.async {
                     self.finishImport(book)
+                    self.populateAfterImport(book.id)
                 }
             } catch {
                 DispatchQueue.main.async {
@@ -153,6 +165,7 @@ final class LibraryStore: ObservableObject {
                 let book = try CHMImporter().importExtractedFolder(from: url)
                 DispatchQueue.main.async {
                     self.finishImport(book)
+                    self.populateAfterImport(book.id)
                 }
             } catch {
                 DispatchQueue.main.async {
@@ -219,7 +232,8 @@ final class LibraryStore: ObservableObject {
     }
 
     private func finishImport(_ book: Book) {
-        if let duplicate = duplicateBook(for: book) {
+        if let fingerprint = book.contentFingerprint,
+           let duplicate = books.first(where: { $0.contentFingerprint == fingerprint }) {
             selectedBookID = duplicate.id
             isImporting = false
             removeImportedFiles(for: book)
@@ -232,6 +246,28 @@ final class LibraryStore: ObservableObject {
         selectedBookID = book.id
         isImporting = false
         save()
+    }
+
+    private func populateAfterImport(_ bookID: Book.ID) {
+        guard let original = books.first(where: { $0.id == bookID }) else { return }
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            var book = original
+            CHMImporter.populateBook(&book)
+            DispatchQueue.main.async {
+                guard let idx = self.books.firstIndex(where: { $0.id == bookID }) else { return }
+                if let fingerprint = book.contentFingerprint,
+                   let dupIdx = self.books.firstIndex(where: { $0.id != bookID && $0.contentFingerprint == fingerprint }) {
+                    self.books.remove(at: idx)
+                    self.selectedBookID = self.books[dupIdx].id
+                    self.errorMessage = "library_duplicate".loc
+                    self.removeImportedFiles(for: book)
+                } else {
+                    self.books[idx] = book
+                }
+                self.save()
+            }
+        }
     }
 
     private func sortBooks() {

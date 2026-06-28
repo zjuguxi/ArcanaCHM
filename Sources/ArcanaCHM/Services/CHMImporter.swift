@@ -35,7 +35,7 @@ final class CHMImporter {
             try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
             try extract(sourceURL: sourceURL, destination: destination)
             try validateExtractedContent(at: destination)
-            return try buildBook(title: title, rootURL: destination)
+            return try buildMinimalBook(title: title, rootURL: destination)
         } catch {
             try? fileManager.removeItem(at: destination)
             throw error
@@ -48,11 +48,27 @@ final class CHMImporter {
         do {
             try copyDirectoryContents(from: folderURL, to: destination)
             try validateExtractedContent(at: destination)
-            return try buildBook(title: folderURL.lastPathComponent, rootURL: destination)
+            return try buildMinimalBook(title: folderURL.lastPathComponent, rootURL: destination)
         } catch {
             try? fileManager.removeItem(at: destination)
             throw error
         }
+    }
+
+    /// Populate a book's TOC and fingerprint after it has been displayed.
+    /// Call this on a background queue after `finishImport`.
+    static func populateBook(_ book: inout Book) {
+        let parser = TOCParser(rootURL: book.rootURL)
+        let toc = parser.parse()
+        if !toc.isEmpty {
+            book.toc = toc
+            if let hp = parser.homePath(from: toc) {
+                book.homePath = hp
+            }
+        } else if let homePath = book.homePath {
+            book.toc = [TOCItem(title: book.title, path: homePath)]
+        }
+        book.contentFingerprint = ContentFingerprint.hashDirectory(book.rootURL)
     }
 
     private func extract(sourceURL: URL, destination: URL) throws {
@@ -79,21 +95,14 @@ final class CHMImporter {
         }
     }
 
-    private func buildBook(title: String, rootURL: URL) throws -> Book {
-        let parser = TOCParser(rootURL: rootURL)
+    private func buildMinimalBook(title: String, rootURL: URL) throws -> Book {
         var book = Book.empty(title: title, rootURL: rootURL)
-        book.toc = parser.parse()
-        book.homePath = parser.homePath(from: book.toc) ?? firstHTMLPath(in: rootURL)
+        book.homePath = firstHTMLPath(in: rootURL)
         book.lastReadPath = book.homePath
 
         guard book.homePath != nil else {
             throw CHMImportError.noReadableContent
         }
-
-        if book.toc.isEmpty, let homePath = book.homePath {
-            book.toc = [TOCItem(title: title, path: homePath)]
-        }
-        book.contentFingerprint = ContentFingerprint.hashDirectory(rootURL)
 
         return book
     }

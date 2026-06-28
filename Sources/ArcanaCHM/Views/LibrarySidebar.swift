@@ -23,63 +23,72 @@ struct LibrarySidebar: View {
             }
             .padding()
 
-            List(selection: $library.selectedBookID) {
-                ForEach(library.books) { book in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 6) {
-                            if book.isPinned == true {
-                                Image(systemName: "pin.fill")
-                                    .font(.caption)
-                                    .foregroundStyle(.teal)
+            ScrollViewReader { proxy in
+                List(selection: $library.selectedBookID) {
+                    ForEach(library.books) { book in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 6) {
+                                if book.isPinned == true {
+                                    Image(systemName: "pin.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.teal)
+                                }
+                                Text(book.title)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .lineLimit(2)
                             }
-                            Text(book.title)
-                                .font(.system(size: 14, weight: .semibold))
-                                .lineLimit(2)
-                        }
-                        HStack(spacing: 8) {
-                            Label("\(book.bookmarks.count)", systemImage: "bookmark")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 6)
-                    .help("sidebar_open_document".loc(book.title))
-                    .contextMenu {
-                        Button {
-                            library.togglePin(book)
-                        } label: {
-                            Label(book.isPinned == true ? "sidebar_unpin".loc : "sidebar_pin".loc, systemImage: book.isPinned == true ? "pin.slash" : "pin")
-                        }
-                        Button(role: .destructive) {
-                            pendingDeleteBook = book
-                        } label: {
-                            Label("sidebar_delete".loc, systemImage: "trash")
-                        }
-                    }
-                    .tag(book.id)
-                }
-            }
-            .listStyle(.sidebar)
-            .overlay {
-                if library.books.isEmpty {
-                    VStack(spacing: 12) {
-                        Spacer()
-                        Image(systemName: "book.pages")
-                            .font(.system(size: 36))
-                            .foregroundStyle(.tertiary)
-                        Text("ArcanaCHM")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                        Text("reader_start_reading".loc)
+                            HStack(spacing: 8) {
+                                Label("\(book.bookmarks.count)", systemImage: "bookmark")
+                            }
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Button("reader_import_chm".loc) {
-                            library.importCHMWithPanel()
                         }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.teal)
-                        .controlSize(.small)
-                        Spacer()
+                        .padding(.vertical, 6)
+                        .help("sidebar_open_document".loc(book.title))
+                        .contextMenu {
+                            Button {
+                                library.togglePin(book)
+                            } label: {
+                                Label(book.isPinned == true ? "sidebar_unpin".loc : "sidebar_pin".loc, systemImage: book.isPinned == true ? "pin.slash" : "pin")
+                            }
+                            Button(role: .destructive) {
+                                pendingDeleteBook = book
+                            } label: {
+                                Label("sidebar_delete".loc, systemImage: "trash")
+                            }
+                        }
+                        .tag(book.id)
+                    }
+                }
+                .listStyle(.sidebar)
+                .onChange(of: library.selectedBookID) { _, newID in
+                    if let newID {
+                        withAnimation {
+                            proxy.scrollTo(newID, anchor: .top)
+                        }
+                    }
+                }
+                .overlay {
+                    if library.books.isEmpty {
+                        VStack(spacing: 12) {
+                            Spacer()
+                            Image(systemName: "book.pages")
+                                .font(.system(size: 36))
+                                .foregroundStyle(.tertiary)
+                            Text("ArcanaCHM")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                            Text("reader_start_reading".loc)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button("reader_import_chm".loc) {
+                                library.importCHMWithPanel()
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.teal)
+                            .controlSize(.small)
+                            Spacer()
+                        }
                     }
                 }
             }

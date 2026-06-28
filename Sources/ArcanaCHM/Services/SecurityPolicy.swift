@@ -27,11 +27,18 @@ enum SecurityPolicy {
         }
 
         let parts = path.split(separator: "/", omittingEmptySubsequences: true)
-        guard !parts.contains(".."), !parts.contains(".") else {
-            return nil
+        var resolved: [String] = []
+        for part in parts {
+            if part == ".." {
+                if !resolved.isEmpty {
+                    resolved.removeLast()
+                }
+            } else if part != "." {
+                resolved.append(String(part))
+            }
         }
-
-        return parts.joined(separator: "/")
+        guard !resolved.isEmpty else { return nil }
+        return resolved.joined(separator: "/")
     }
 
     static func safeFileURL(rootURL: URL, relativePath: String?) -> URL? {

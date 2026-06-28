@@ -22,12 +22,33 @@ final class SecurityPolicyTests: XCTestCase {
         XCTAssertEqual(SecurityPolicy.safeRelativePath("foo/bar.html?param=1"), "foo/bar.html")
     }
 
-    func testSafeRelativePath_rejectsDotDot() {
-        XCTAssertNil(SecurityPolicy.safeRelativePath("foo/../../etc/passwd"))
+    func testSafeRelativePath_resolvesDotDot() {
+        XCTAssertEqual(SecurityPolicy.safeRelativePath("foo/../../etc/passwd"), "etc/passwd")
     }
 
-    func testSafeRelativePath_rejectsDotComponent() {
-        XCTAssertNil(SecurityPolicy.safeRelativePath("./foo/bar.html"))
+    func testSafeRelativePath_resolvesDotComponent() {
+        XCTAssertEqual(SecurityPolicy.safeRelativePath("./foo/bar.html"), "foo/bar.html")
+    }
+
+    func testSafeRelativePath_resolvesLeadingDotDot() {
+        XCTAssertEqual(SecurityPolicy.safeRelativePath("../B01C001.htm"), "B01C001.htm")
+    }
+
+    func testSafeRelativePath_resolvesMultipleLeadingDotDot() {
+        XCTAssertEqual(SecurityPolicy.safeRelativePath("../../file.html"), "file.html")
+    }
+
+    func testSafeRelativePath_resolvesNestedDotDot() {
+        XCTAssertEqual(SecurityPolicy.safeRelativePath("a/b/../c/d.html"), "a/c/d.html")
+    }
+
+    func testSafeRelativePath_resolvesDotDotWithHash() {
+        XCTAssertEqual(SecurityPolicy.safeRelativePath("../page.html#section"), "page.html")
+    }
+
+    func testSafeRelativePath_allDotDotOnlyReturnsNil() {
+        XCTAssertNil(SecurityPolicy.safeRelativePath(".."))
+        XCTAssertNil(SecurityPolicy.safeRelativePath("../.."))
     }
 
     func testSafeRelativePath_rejectsTilde() {
@@ -99,9 +120,18 @@ final class SecurityPolicyTests: XCTestCase {
         XCTAssertEqual(result?.path, "/tmp/books/testbook/index.html")
     }
 
-    func testSafeFileURL_rejectsDotDot() {
+    func testSafeFileURL_resolvesDotDot() {
         let root = URL(fileURLWithPath: "/tmp/books/testbook")
-        XCTAssertNil(SecurityPolicy.safeFileURL(rootURL: root, relativePath: "../index.html"))
+        let result = SecurityPolicy.safeFileURL(rootURL: root, relativePath: "../index.html")
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.path, "/tmp/books/testbook/index.html")
+    }
+
+    func testSafeFileURL_resolvesNestedDotDot() {
+        let root = URL(fileURLWithPath: "/tmp/books/testbook")
+        let result = SecurityPolicy.safeFileURL(rootURL: root, relativePath: "a/../../index.html")
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.path, "/tmp/books/testbook/index.html")
     }
 
     func testSafeFileURL_rejectsNilPath() {

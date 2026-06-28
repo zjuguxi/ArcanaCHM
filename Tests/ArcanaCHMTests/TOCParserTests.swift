@@ -121,6 +121,36 @@ final class TOCParserTests: XCTestCase {
 
     // MARK: - UL with attributes
 
+    func testParse_dotDotPaths_areResolved() throws {
+        let dir = try createHHCFile(#"""
+        <ul><li><object><param name="Name" value="Genesis"><param name="Local" value="../B01C001.htm"></object></ul>
+        """#)
+        let toc = TOCParser(rootURL: dir).parse()
+        XCTAssertEqual(toc.count, 1)
+        XCTAssertEqual(toc[0].title, "Genesis")
+        XCTAssertEqual(toc[0].path, "B01C001.htm")
+    }
+
+    func testParse_nestedDotDotPaths_areResolved() throws {
+        let dir = try createHHCFile(#"""
+        <ul><li><object><param name="Name" value="Nested"><param name="Local" value="sub/../../page.html"></object></ul>
+        """#)
+        let toc = TOCParser(rootURL: dir).parse()
+        XCTAssertEqual(toc.count, 1)
+        XCTAssertEqual(toc[0].title, "Nested")
+        XCTAssertEqual(toc[0].path, "page.html")
+    }
+
+    func testParse_dotDotWithHash_areResolved() throws {
+        let dir = try createHHCFile(#"""
+        <ul><li><object><param name="Name" value="Section"><param name="Local" value="../page.html#sec"></object></ul>
+        """#)
+        let toc = TOCParser(rootURL: dir).parse()
+        XCTAssertEqual(toc.count, 1)
+        XCTAssertEqual(toc[0].title, "Section")
+        XCTAssertEqual(toc[0].path, "page.html")
+    }
+
     func testParse_ulWithClassAttribute_itemsStillParsed() throws {
         let dir = try createHHCFile(#"""
         <html><body>
