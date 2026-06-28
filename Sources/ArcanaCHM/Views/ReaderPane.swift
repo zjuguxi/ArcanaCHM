@@ -149,9 +149,9 @@ struct ReaderPane: View {
             TextField("reader_find_placeholder".loc, text: $findQuery)
                 .textFieldStyle(.plain)
                 .focused($findFieldFocused)
-                .onChange(of: findQuery) { _, _ in
-                    findNavigationTrigger = UUID()
+                .onSubmit {
                     findDirection = .next
+                    findNavigationTrigger = UUID()
                 }
 
             if findTotalMatches > 0 {

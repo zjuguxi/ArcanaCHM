@@ -300,12 +300,12 @@ struct WebReaderView: NSViewRepresentable {
           window.__arcanaNavigateFind = function(dir) {
             var marks = document.querySelectorAll('mark.arcana-find-hit');
             if (!marks.length) return;
-            document.querySelectorAll('mark.arcana-find-current').forEach(function(m) { m.classList.remove('arcana-find-current'); });
-            var cur = -1;
-            for (var i = 0; i < marks.length; i++) { if (marks[i].classList.contains('arcana-find-current')) { cur = i; break; } }
+            var cur = window.__arcanaFindCurrent || 0;
+            if (cur < 0 || cur >= marks.length) cur = 0;
             var next = dir === 'next' ? cur + 1 : cur - 1;
             if (next >= marks.length) next = 0;
             if (next < 0) next = marks.length - 1;
+            document.querySelectorAll('mark.arcana-find-current').forEach(function(m) { m.classList.remove('arcana-find-current'); });
             marks[next].classList.add('arcana-find-current');
             marks[next].scrollIntoView({ block: 'center' });
             window.__arcanaFindCurrent = next;
