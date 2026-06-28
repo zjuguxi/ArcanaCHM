@@ -138,6 +138,48 @@ final class EncodingTests: XCTestCase {
         XCTAssertEqual(decoded, text)
     }
 
+    // MARK: - HTML Entity Decoding
+
+    func testDecodeEntities_named() {
+        XCTAssertEqual(decodeEntities("&lt;div&gt;"), "<div>")
+        XCTAssertEqual(decodeEntities("&amp;quot;"), "&quot;")
+        XCTAssertEqual(decodeEntities("&copy; 2024"), "\u{00A9} 2024")
+        XCTAssertEqual(decodeEntities("&mdash;"), "\u{2014}")
+        XCTAssertEqual(decodeEntities("&amp;amp;"), "&amp;")
+        XCTAssertEqual(decodeEntities("&amp;"), "&")
+    }
+
+    func testDecodeEntities_numeric() {
+        XCTAssertEqual(decodeEntities("&#169;"), "\u{00A9}")
+        XCTAssertEqual(decodeEntities("&#x00A9;"), "\u{00A9}")
+        XCTAssertEqual(decodeEntities("&#x00a9;"), "\u{00A9}")
+        XCTAssertEqual(decodeEntities("&#60;"), "<")
+    }
+
+    func testDecodeEntities_noChange() {
+        XCTAssertEqual(decodeEntities("hello world"), "hello world")
+        XCTAssertEqual(decodeEntities(""), "")
+        XCTAssertEqual(decodeEntities("no entities here"), "no entities here")
+    }
+
+    func testDecodeEntities_mixed() {
+        let input = "&lt;b&gt;hello &amp; &mdash; &#169; 2024&copy;&lt;/b&gt;"
+        let expected = "<b>hello & \u{2014} \u{00A9} 2024\u{00A9}</b>"
+        XCTAssertEqual(decodeEntities(input), expected)
+    }
+
+    func testDecodeEntities_doubleAmpersand() {
+        XCTAssertEqual(decodeEntities("&amp;amp;lt;"), "&amp;lt;")
+    }
+
+    func testDecodeEntities_trade() {
+        XCTAssertEqual(decodeEntities("&trade;"), "\u{2122}")
+    }
+
+    func testDecodeEntities_hellip() {
+        XCTAssertEqual(decodeEntities("continue&hellip;"), "continue\u{2026}")
+    }
+
     // MARK: - Helpers
 
     private func createTempFile(content: String, encoding: String.Encoding) throws -> URL {

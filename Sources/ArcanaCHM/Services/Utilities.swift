@@ -13,18 +13,41 @@ extension String.Encoding {
 
 func decodeEntities(_ text: String) -> String {
     var result = text
-    let replacements = [
-        "&amp;": "&",
-        "&lt;": "<",
-        "&gt;": ">",
-        "&quot;": "\"",
-        "&#39;": "'",
-        "&nbsp;": " "
+
+    let named = [
+        "&lt;": "<", "&gt;": ">", "&quot;": "\"", "&#39;": "'",
+        "&nbsp;": "\u{00A0}", "&mdash;": "\u{2014}", "&ndash;": "\u{2013}",
+        "&copy;": "\u{00A9}", "&reg;": "\u{00AE}", "&trade;": "\u{2122}",
+        "&hellip;": "\u{2026}", "&bull;": "\u{2022}", "&middot;": "\u{00B7}",
+        "&deg;": "\u{00B0}", "&plusmn;": "\u{00B1}", "&sect;": "\u{00A7}",
+        "&ldquo;": "\u{201C}", "&rdquo;": "\u{201D}",
+        "&lsquo;": "\u{2018}", "&rsquo;": "\u{2019}",
     ]
-    for (key, value) in replacements {
-        result = result.replacingOccurrences(of: key, with: value)
+    for (entity, ch) in named {
+        result = result.replacingOccurrences(of: entity, with: ch)
     }
-    return result
+
+    result = result.replacingOccurrences(of: "&amp;", with: "&")
+
+    let nsResult = NSMutableString(string: result)
+    let pattern = #"&#(x?)([0-9a-fA-F]+);"#
+    guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+        return nsResult as String
+    }
+    let matches = regex.matches(in: nsResult as String, options: [], range: NSRange(location: 0, length: nsResult.length))
+    for match in matches.reversed() {
+        let fullRange = match.range
+        let isHex = nsResult.substring(with: match.range(at: 1)).lowercased() == "x"
+        let numStr = nsResult.substring(with: match.range(at: 2))
+        guard let numVal = isHex ? Int(numStr, radix: 16) : Int(numStr),
+              numVal > 0,
+              let scalar = UnicodeScalar(numVal) else {
+            continue
+        }
+        nsResult.replaceCharacters(in: fullRange, with: String(scalar))
+    }
+
+    return nsResult as String
 }
 
 func readText(_ url: URL) -> String? {

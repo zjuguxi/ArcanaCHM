@@ -210,9 +210,12 @@ final class LibraryStore: ObservableObject {
     func search(_ query: String, in book: Book) async -> [SearchHit] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else { return [] }
-        return await Task.detached(priority: .userInitiated) {
-            SearchService().search(trimmed, in: book)
-        }.value
+        return await withUnsafeContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let hits = SearchService().search(trimmed, in: book)
+                continuation.resume(returning: hits)
+            }
+        }
     }
 
     private func finishImport(_ book: Book) {

@@ -38,7 +38,7 @@ final class TOCFilterTests: XCTestCase {
         XCTAssertEqual(result[0].title, "Root")
         XCTAssertEqual(result[0].children.count, 1)
         XCTAssertEqual(result[0].children[0].title, "Chapter Alpha")
-        XCTAssertEqual(result[0].children[0].children.count, 1)
+        XCTAssertEqual(result[0].children[0].children.count, 0)
     }
 
     func testMatchesGrandchildKeepsFullParentChain() {
@@ -83,14 +83,14 @@ final class TOCFilterTests: XCTestCase {
         XCTAssertEqual(result[0].title, "Chapter Beta")
     }
 
-    func testParentItselfMatchesKeepsAllChildren() {
+    func testParentItselfMatchesShowsNoChildrenWhenNoneMatch() {
         let items = [TOCItem(id: UUID(), title: "Installation Guide", path: nil, children: [
             TOCItem(id: UUID(), title: "Windows", path: "win.html", children: []),
             TOCItem(id: UUID(), title: "macOS", path: "mac.html", children: []),
         ])]
         let result = TOCView.filter(items: items, query: "Installation")
         XCTAssertEqual(result.count, 1)
-        XCTAssertEqual(result[0].children.count, 2)
+        XCTAssertEqual(result[0].children.count, 0)
     }
 
     // MARK: - leafMatchIDs tests
