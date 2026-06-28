@@ -51,12 +51,10 @@ struct WebReaderView: NSViewRepresentable {
             load(webView)
         } else {
             let shouldScrollToMatch = context.coordinator.lastHighlightedQuery != normalizedSearchQuery
-            injectStyle(into: webView, scrollToMatch: shouldScrollToMatch)
+            let navigationChanged = context.coordinator.lastNavigationToken != navigationToken
+            injectStyle(into: webView, scrollToMatch: shouldScrollToMatch, scrollY: navigationChanged ? scrollY : nil)
             context.coordinator.lastHighlightedQuery = normalizedSearchQuery
-            if context.coordinator.lastNavigationToken != navigationToken {
-                context.coordinator.lastNavigationToken = navigationToken
-                scrollToRequestedPosition(in: webView)
-            }
+            context.coordinator.lastNavigationToken = navigationToken
             if findQuery != context.coordinator.lastFindQuery {
                 context.coordinator.lastFindQuery = findQuery
                 let escaped = findQuery.javascriptStringLiteral
@@ -84,7 +82,7 @@ struct WebReaderView: NSViewRepresentable {
         searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    fileprivate func injectStyle(into webView: WKWebView, scrollToMatch: Bool) {
+    fileprivate func injectStyle(into webView: WKWebView, scrollToMatch: Bool, scrollY: Double? = nil) {
         let css = """
         :root {
           color-scheme: light;
@@ -113,7 +111,7 @@ struct WebReaderView: NSViewRepresentable {
           font-size: 1rem !important;
           line-height: 1.68 !important;
         }
-        body font, body span, body div, body p, body li, body dd, body dt, body td, body th {
+        body font, body span, body div, body p, body li, body dd, body dt, body td, body th, body b, body strong, body em, body i, body u {
           font-size: 1rem !important;
           font-family: inherit !important;
           color: inherit !important;
@@ -126,7 +124,7 @@ struct WebReaderView: NSViewRepresentable {
         h1 { font-size: 2rem !important; margin-top: 1.2em !important; border-bottom: 1px solid var(--reader-rule) !important; padding-bottom: .35em !important; }
         h2 { font-size: 1.45rem !important; margin-top: 1.55em !important; }
         h3 { font-size: 1.15rem !important; margin-top: 1.35em !important; }
-        h1 *, h2 *, h3 *, h4 * { font-size: inherit !important; }
+        h1 *, h2 *, h3 *, h4 * { font-size: inherit !important; color: inherit !important; }
         a { color: var(--reader-accent) !important; text-decoration-thickness: .08em !important; }
         table {
           border-collapse: collapse !important;
@@ -146,7 +144,7 @@ struct WebReaderView: NSViewRepresentable {
           background: #edf5f2 !important;
           border-radius: 6px !important;
         }
-        table, td, th { background-color: var(--reader-surface) !important; }
+        table, td { background-color: var(--reader-surface) !important; }
         pre, code { background: var(--reader-code) !important; color: var(--reader-fg) !important; }
         ::-webkit-scrollbar { width: 12px; height: 12px; background: var(--reader-bg); }
         ::-webkit-scrollbar-thumb {
@@ -324,14 +322,10 @@ struct WebReaderView: NSViewRepresentable {
             }, { passive: true });
           }
           window.webkit.messageHandlers.reader.postMessage({ type: 'title', title: document.title || '' });
+          \(scrollY.map { y in "if (!scrollToMatch) requestAnimationFrame(function(){ window.scrollTo(0, \(Int(max(0, y)))); });" } ?? "")
         })();
         """
         webView.evaluateJavaScript(script)
-    }
-
-    fileprivate func scrollToRequestedPosition(in webView: WKWebView) {
-        let y = max(0, Int(scrollY))
-        webView.evaluateJavaScript("requestAnimationFrame(function(){ window.scrollTo(0, \(y)); });")
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
@@ -370,17 +364,14 @@ struct WebReaderView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            parent.injectStyle(into: webView, scrollToMatch: !parent.normalizedSearchQuery.isEmpty)
+            let hasSearch = !parent.normalizedSearchQuery.isEmpty
+            parent.injectStyle(into: webView, scrollToMatch: hasSearch, scrollY: hasSearch ? nil : parent.scrollY)
             lastHighlightedQuery = parent.normalizedSearchQuery
             lastNavigationToken = parent.navigationToken
             lastFindQuery = parent.findQuery
             if !parent.findQuery.isEmpty {
                 let escaped = parent.findQuery.javascriptStringLiteral
                 webView.evaluateJavaScript("window.__arcanaFindInPage(\(escaped))")
-            }
-            let y = parent.scrollY
-            if y > 0 && parent.normalizedSearchQuery.isEmpty {
-                parent.scrollToRequestedPosition(in: webView)
             }
         }
 
