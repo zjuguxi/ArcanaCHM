@@ -6,6 +6,8 @@ on:
     paths:
       - 'docs/**'
       - '.github/workflows/pages.yml'
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -50,9 +52,9 @@ jobs:
           p = pathlib.Path("${FILE}")
           s = p.read_text(encoding="utf-8")
           s = s.replace("{{VERSION}}", "${{ steps.ver.outputs.version }}")
-          # Point download button to the exact DMG asset for this version.
+          # Point every download button (download-btn, download-btn-2, ...) to the exact DMG asset.
           s = re.sub(
-              r'(<a[^>]*id="download-btn"[^>]*href=")[^"]*(")',
+              r'(<a[^>]*id="download-btn[^"]*"[^>]*href=")[^"]*(")',
               r'\1${{ steps.ver.outputs.dmg_url }}\2',
               s,
           )
