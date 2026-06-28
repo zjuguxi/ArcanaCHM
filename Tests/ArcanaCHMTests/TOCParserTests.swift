@@ -119,6 +119,68 @@ final class TOCParserTests: XCTestCase {
         XCTAssertTrue(toc.isEmpty)
     }
 
+    // MARK: - UL with attributes
+
+    func testParse_ulWithClassAttribute_itemsStillParsed() throws {
+        let dir = try createHHCFile(#"""
+        <html><body>
+        <ul class="sitemap">
+        <li><object type="text/sitemap">
+        <param name="Name" value="Chapter 1">
+        <param name="Local" value="ch1.html">
+        </object></li>
+        </ul>
+        </body></html>
+        """#)
+        let toc = TOCParser(rootURL: dir).parse()
+        // HHCTokenizer regex `<\s*UL\s*>` does not match `<ul class="...">`,
+        // but OBJECT tokens are still extracted so items are found flat
+        XCTAssertEqual(toc.count, 1)
+        XCTAssertEqual(toc[0].title, "Chapter 1")
+        XCTAssertEqual(toc[0].path, "ch1.html")
+    }
+
+    func testParse_ulWithTypeAttribute_itemsStillParsed() throws {
+        let dir = try createHHCFile(#"""
+        <ul type="sitemap">
+        <li><object><param name="Name" value="Topic"><param name="Local" value="topic.html"></object></li>
+        </ul>
+        """#)
+        let toc = TOCParser(rootURL: dir).parse()
+        XCTAssertEqual(toc.count, 1)
+        XCTAssertEqual(toc[0].title, "Topic")
+    }
+
+    func testParse_nestedUlWithAttributes_noNesting() throws {
+        let dir = try createHHCFile(#"""
+        <ul class="level1">
+        <li><object><param name="Name" value="Parent"><param name="Local" value="p.html"></object>
+        <ul class="level2">
+        <li><object><param name="Name" value="Child"><param name="Local" value="c.html"></object></li>
+        </ul>
+        </li>
+        </ul>
+        """#)
+        let toc = TOCParser(rootURL: dir).parse()
+        // Both `<ul class="...">` fail to match as ulStart/ulEnd,
+        // so both items appear flat rather than nested
+        XCTAssertEqual(toc.count, 2)
+        XCTAssertEqual(toc[0].title, "Parent")
+        XCTAssertEqual(toc[1].title, "Child")
+        XCTAssertTrue(toc[0].children.isEmpty, "nesting is lost when UL has attributes")
+    }
+
+    func testParse_ulWithIdAttribute() throws {
+        let dir = try createHHCFile(#"""
+        <ul id="toc">
+        <li><object><param name="Name" value="Item A"><param name="Local" value="a.html"></object></li>
+        </ul>
+        """#)
+        let toc = TOCParser(rootURL: dir).parse()
+        XCTAssertEqual(toc.count, 1)
+        XCTAssertEqual(toc[0].title, "Item A")
+    }
+
     // MARK: - Fallback TOC
 
     func testFallbackTOC_noHHCFile() throws {

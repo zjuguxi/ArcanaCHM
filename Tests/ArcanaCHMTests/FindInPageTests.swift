@@ -101,33 +101,6 @@ final class FindInPageTests: XCTestCase {
 
     // MARK: - OnSubmit produces .next direction
 
-    func testOnSubmitSetsNextDirection() {
-        var direction: FindDirection = .previous
-        var triggerCount = 0
-
-        // Simulate what .onSubmit does
-        direction = .next
-        triggerCount += 1
-
-        XCTAssertEqual(direction, .next)
-        XCTAssertEqual(triggerCount, 1)
-    }
-
-    func testFindBarCloseResetsState() {
-        var query = "test"
-        var current = 3
-        var total = 5
-
-        // Simulate close
-        query = ""
-        current = 0
-        total = 0
-
-        XCTAssertEqual(query, "")
-        XCTAssertEqual(current, 0)
-        XCTAssertEqual(total, 0)
-    }
-
     // MARK: - Helpers
 
     private func makeCoordinator(
