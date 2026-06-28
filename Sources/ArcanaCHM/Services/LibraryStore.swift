@@ -65,10 +65,27 @@ final class LibraryStore: ObservableObject {
         errorMessage = "library_corrupted_restored".loc
     }
 
+    private var saveWorkItem: DispatchWorkItem?
+
     func save() {
+        saveImmediately(backup: true)
+    }
+
+    func saveDebounced() {
+        saveWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.saveImmediately(backup: false)
+        }
+        saveWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
+    }
+
+    private func saveImmediately(backup: Bool = true) {
+        saveWorkItem?.cancel()
+        saveWorkItem = nil
         do {
             try AppPaths.ensure()
-            if FileManager.default.fileExists(atPath: AppPaths.libraryFile.path) {
+            if backup && FileManager.default.fileExists(atPath: AppPaths.libraryFile.path) {
                 try? FileManager.default.removeItem(at: AppPaths.backupFile)
                 try FileManager.default.copyItem(at: AppPaths.libraryFile, to: AppPaths.backupFile)
             }
@@ -179,7 +196,7 @@ final class LibraryStore: ObservableObject {
         guard let index = books.firstIndex(where: { $0.id == book.id }) else { return }
         books[index] = book
         sortBooks()
-        save()
+        saveDebounced()
     }
 
     func togglePin(_ book: Book) {
@@ -202,22 +219,25 @@ final class LibraryStore: ObservableObject {
     }
 
     func toggleBookmark(path: String, scrollY: Double) {
-        guard var book = selectedBook else { return }
-        if let index = book.bookmarks.firstIndex(where: { $0.path == path }) {
-            book.bookmarks.remove(at: index)
-            update(book)
-            return
+        guard let book = selectedBook,
+              let idx = books.firstIndex(where: { $0.id == book.id }) else { return }
+        if let bmIdx = books[idx].bookmarks.firstIndex(where: { $0.path == path }) {
+            books[idx].bookmarks.remove(at: bmIdx)
+        } else {
+            let title = displayTitle(for: path, in: books[idx])
+            books[idx].bookmarks.insert(
+                Bookmark(id: UUID(), title: title, path: path, scrollY: scrollY, createdAt: Date()),
+                at: 0
+            )
         }
-
-        let title = displayTitle(for: path, in: book)
-        book.bookmarks.insert(Bookmark(id: UUID(), title: title, path: path, scrollY: scrollY, createdAt: Date()), at: 0)
-        update(book)
+        save()
     }
 
     func remember(path: String) {
-        guard var book = selectedBook, book.lastReadPath != path else { return }
-        book.lastReadPath = path
-        update(book)
+        guard let idx = books.firstIndex(where: { $0.id == selectedBookID }),
+              books[idx].lastReadPath != path else { return }
+        books[idx].lastReadPath = path
+        saveDebounced()
     }
 
     func search(_ query: String, in book: Book) async -> [SearchHit] {
@@ -314,7 +334,6 @@ final class LibraryStore: ObservableObject {
 extension JSONEncoder {
     static var reader: JSONEncoder {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         return encoder
     }

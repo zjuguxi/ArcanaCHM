@@ -3,6 +3,7 @@ import Foundation
 
 enum ContentFingerprint {
     static func hashDirectory(_ rootURL: URL) -> String? {
+        let rootPath = rootURL.standardizedFileURL.resolvingSymlinksInPath().path
         let fileManager = FileManager.default
         guard let enumerator = fileManager.enumerator(
             at: rootURL,
@@ -19,7 +20,7 @@ enum ContentFingerprint {
             guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]),
                   values.isRegularFile == true
                     && values.isSymbolicLink != true
-                    && SecurityPolicy.isDescendant(url, of: rootURL)
+                    && SecurityPolicy.isDescendant(url, rootPath: rootPath)
             else {
                 continue
             }

@@ -11,6 +11,8 @@ extension String.Encoding {
     static let big5 = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.big5.rawValue)))
 }
 
+private let numericEntityRegex = try! NSRegularExpression(pattern: #"&#(x?)([0-9a-fA-F]+);"#, options: [.caseInsensitive])
+
 func decodeEntities(_ text: String) -> String {
     var result = text
 
@@ -30,11 +32,7 @@ func decodeEntities(_ text: String) -> String {
     result = result.replacingOccurrences(of: "&amp;", with: "&")
 
     let nsResult = NSMutableString(string: result)
-    let pattern = #"&#(x?)([0-9a-fA-F]+);"#
-    guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-        return nsResult as String
-    }
-    let matches = regex.matches(in: nsResult as String, options: [], range: NSRange(location: 0, length: nsResult.length))
+    let matches = numericEntityRegex.matches(in: nsResult as String, options: [], range: NSRange(location: 0, length: nsResult.length))
     for match in matches.reversed() {
         let fullRange = match.range
         let isHex = nsResult.substring(with: match.range(at: 1)).lowercased() == "x"
@@ -49,6 +47,11 @@ func decodeEntities(_ text: String) -> String {
 
     return nsResult as String
 }
+
+private let charsetRegex = try! NSRegularExpression(
+    pattern: #"charset\s*=\s*["'\s]*([^"';\s>]+)"#,
+    options: [.caseInsensitive]
+)
 
 func readText(_ url: URL) -> String? {
     guard let data = try? Data(contentsOf: url) else { return nil }
@@ -113,11 +116,7 @@ private func extractMetaCharset(_ data: Data) -> String.Encoding? {
         return nil
     }
 
-    let pattern = try? NSRegularExpression(
-        pattern: #"charset\s*=\s*["'\s]*([^"';\s>]+)"#,
-        options: [.caseInsensitive]
-    )
-    guard let match = pattern?.firstMatch(in: ascii, range: NSRange(ascii.startIndex..., in: ascii)),
+    guard let match = charsetRegex.firstMatch(in: ascii, range: NSRange(ascii.startIndex..., in: ascii)),
           let range = Range(match.range(at: 1), in: ascii)
     else { return nil }
 

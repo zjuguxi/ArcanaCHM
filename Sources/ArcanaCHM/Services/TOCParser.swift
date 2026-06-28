@@ -1,12 +1,18 @@
 import CoreFoundation
 import Foundation
 
+private let nameParamPattern = try! NSRegularExpression(pattern: #"<PARAM\s+[^>]*name\s*=\s*["']?Name["']?[^>]*value\s*=\s*["']?([^"'>]+)["']?[^>]*>"#, options: [.caseInsensitive])
+private let titleParamPattern = try! NSRegularExpression(pattern: #"<PARAM\s+[^>]*name\s*=\s*["']?Title["']?[^>]*value\s*=\s*["']?([^"'>]+)["']?[^>]*>"#, options: [.caseInsensitive])
+private let localParamPattern = try! NSRegularExpression(pattern: #"<PARAM\s+[^>]*name\s*=\s*["']?Local["']?[^>]*value\s*=\s*["']?([^"'>]+)["']?[^>]*>"#, options: [.caseInsensitive])
+
 final class TOCParser {
     private let rootURL: URL
+    private let rootPath: String
     private let fileManager = FileManager.default
 
     init(rootURL: URL) {
         self.rootURL = rootURL
+        self.rootPath = rootURL.standardizedFileURL.resolvingSymlinksInPath().path
     }
 
     func parse() -> [TOCItem] {
@@ -73,17 +79,15 @@ final class TOCParser {
     }
 
     private func item(from object: String) -> TOCItem? {
-        let name = param("Name", in: object) ?? param("Title", in: object)
-        let local = param("Local", in: object)
+        let name = firstParam(nameParamPattern, in: object) ?? firstParam(titleParamPattern, in: object)
+        let local = firstParam(localParamPattern, in: object)
         guard let name, !name.isEmpty else {
             return nil
         }
         return TOCItem(title: ArcanaCHM.decodeEntities(name), path: SecurityPolicy.safeRelativePath(local))
     }
 
-    private func param(_ name: String, in object: String) -> String? {
-        let pattern = #"<PARAM\s+[^>]*name\s*=\s*["']?\#(name)["']?[^>]*value\s*=\s*["']?([^"'>]+)["']?[^>]*>"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+    private func firstParam(_ regex: NSRegularExpression, in object: String) -> String? {
         let range = NSRange(object.startIndex..<object.endIndex, in: object)
         guard let match = regex.firstMatch(in: object, range: range), match.numberOfRanges > 1 else {
             return nil
@@ -126,7 +130,7 @@ final class TOCParser {
         else {
             return false
         }
-        return SecurityPolicy.isDescendant(url, of: rootURL)
+        return SecurityPolicy.isDescendant(url, rootPath: rootPath)
     }
 
 }
@@ -154,15 +158,10 @@ private struct HHCTokenizer {
             guard let swiftRange = Range(match.range, in: html) else { return nil }
             let raw = String(html[swiftRange])
             let lower = raw.lowercased()
-            if lower.range(of: #"^<\s*ul\s*>"#, options: .regularExpression) != nil {
-                return .ulStart
-            }
-            if lower.range(of: #"^<\s*/\s*ul\s*>"#, options: .regularExpression) != nil {
-                return .ulEnd
-            }
-            if lower.range(of: #"^<\s*li\s*>"#, options: .regularExpression) != nil {
-                return .li
-            }
+            // Fast path: check prefixes instead of regex
+            if lower.hasPrefix("</ul>") || lower == "</ul>" { return .ulEnd }
+            if lower == "<li>" { return .li }
+            if lower.hasPrefix("<ul") { return .ulStart }
             return .object(raw)
         }
     }
@@ -173,5 +172,3 @@ private struct HHCTokenizer {
         return tokens[index]
     }
 }
-
-

@@ -58,17 +58,35 @@ enum SecurityPolicy {
         return candidate
     }
 
+    /// Resolve a root URL once, then reuse the resolved root for many file checks.
     static func relativePath(for fileURL: URL, rootURL: URL) -> String? {
         let root = rootURL.standardizedFileURL.resolvingSymlinksInPath().path
         let path = fileURL.standardizedFileURL.resolvingSymlinksInPath().path
-        guard path == root || path.hasPrefix(root + "/") else { return nil }
-        return String(path.dropFirst(root.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return relativePath(path: path, rootPath: root)
+    }
+
+    static func relativePath(path: String, rootPath: String) -> String? {
+        guard path == rootPath || path.hasPrefix(rootPath + "/") else { return nil }
+        return String(path.dropFirst(rootPath.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     }
 
     static func isDescendant(_ url: URL, of rootURL: URL) -> Bool {
-        let root = rootURL.standardizedFileURL.resolvingSymlinksInPath().path
-        let path = url.standardizedFileURL.resolvingSymlinksInPath().path
-        return path == root || path.hasPrefix(root + "/")
+        isDescendant(
+            path: url.standardizedFileURL.resolvingSymlinksInPath().path,
+            rootPath: rootURL.standardizedFileURL.resolvingSymlinksInPath().path
+        )
+    }
+
+    static func isDescendant(_ url: URL, rootPath: String) -> Bool {
+        isDescendant(path: url.standardizedFileURL.resolvingSymlinksInPath().path, rootPath: rootPath)
+    }
+
+    static func isDescendant(path: String, rootPath: String) -> Bool {
+        path == rootPath || path.hasPrefix(rootPath + "/")
+    }
+
+    static func isDescendant(_ url: URL, rootURL: URL, resolvedRootPath: String) -> Bool {
+        isDescendant(path: url.standardizedFileURL.resolvingSymlinksInPath().path, rootPath: resolvedRootPath)
     }
 
     static func isInsideAppBooks(_ url: URL) -> Bool {
