@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import SwiftUI
+import UniformTypeIdentifiers
 
 private let currentSchemaVersion = 1
 
@@ -109,7 +110,9 @@ final class LibraryStore: ObservableObject {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.init(filenameExtension: "chm")!]
+        if let chmType = UTType(filenameExtension: "chm") {
+            panel.allowedContentTypes = [chmType]
+        }
         if panel.runModal() == .OK, let url = panel.url {
             importCHM(url)
         }
@@ -127,24 +130,34 @@ final class LibraryStore: ObservableObject {
 
     func importCHM(_ url: URL) {
         isImporting = true
-        Task.detached {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
             do {
                 let book = try CHMImporter().importCHM(from: url)
-                await self.finishImport(book)
+                DispatchQueue.main.async {
+                    self.finishImport(book)
+                }
             } catch {
-                await self.fail(error)
+                DispatchQueue.main.async {
+                    self.fail(error)
+                }
             }
         }
     }
 
     func importFolder(_ url: URL) {
         isImporting = true
-        Task.detached {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
             do {
                 let book = try CHMImporter().importExtractedFolder(from: url)
-                await self.finishImport(book)
+                DispatchQueue.main.async {
+                    self.finishImport(book)
+                }
             } catch {
-                await self.fail(error)
+                DispatchQueue.main.async {
+                    self.fail(error)
+                }
             }
         }
     }
