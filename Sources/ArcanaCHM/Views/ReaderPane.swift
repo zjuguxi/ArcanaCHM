@@ -7,11 +7,22 @@ struct ReaderPane: View {
 
     @State private var currentTitle = ""
     @State private var hoveredToolbarTitle: String?
+    @State private var showFindBar = false
+    @State private var findQuery = ""
+    @State private var findCurrentMatch = 0
+    @State private var findTotalMatches = 0
+    @State private var findNavigationTrigger = UUID()
+    @State private var findDirection: FindDirection = .next
+    @FocusState private var findFieldFocused: Bool
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
             VStack(spacing: 0) {
                 toolbar
+                if showFindBar {
+                    findBar
+                    Divider()
+                }
                 Divider()
 
                 if let book = library.selectedBook, let path = reader.currentPath ?? book.homePath {
@@ -33,6 +44,13 @@ struct ReaderPane: View {
                         },
                         onTitle: { title in
                             currentTitle = title.nilIfBlank() ?? book.title
+                        },
+                        findQuery: findQuery,
+                        findNavigationTrigger: findNavigationTrigger,
+                        findDirection: findDirection,
+                        onFindResults: { current, total in
+                            findCurrentMatch = current
+                            findTotalMatches = total
                         }
                     )
                 } else {
@@ -56,6 +74,20 @@ struct ReaderPane: View {
                     .zIndex(9999)
             }
         }
+        .onChange(of: showFindBar) { _, newValue in
+            if newValue {
+                findFieldFocused = true
+            } else {
+                findQuery = ""
+                findTotalMatches = 0
+                findCurrentMatch = 0
+            }
+        }
+        .background {
+            Button("") { showFindBar = true }
+                .keyboardShortcut("f", modifiers: .command)
+                .hidden()
+            }
     }
 
     private var toolbar: some View {
@@ -71,6 +103,10 @@ struct ReaderPane: View {
             }
 
             Spacer()
+
+            ReaderToolbarButton(title: "reader_find".loc, systemImage: "magnifyingglass", isActive: showFindBar, hoveredTitle: $hoveredToolbarTitle) {
+                showFindBar.toggle()
+            }
 
             ReaderToolbarButton(title: "reader_font_decrease".loc, systemImage: "textformat.size.smaller", hoveredTitle: $hoveredToolbarTitle) {
                 reader.fontScale = max(0.82, reader.fontScale - 0.08)
@@ -103,6 +139,60 @@ struct ReaderPane: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+        .background(.bar)
+    }
+
+    private var findBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("reader_find_placeholder".loc, text: $findQuery)
+                .textFieldStyle(.plain)
+                .focused($findFieldFocused)
+                .onChange(of: findQuery) { _, _ in
+                    findNavigationTrigger = UUID()
+                    findDirection = .next
+                }
+
+            if findTotalMatches > 0 {
+                Text("\(findCurrentMatch)/\(findTotalMatches)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 40)
+                    .monospacedDigit()
+            }
+
+            Button {
+                findDirection = .previous
+                findNavigationTrigger = UUID()
+            } label: {
+                Image(systemName: "chevron.up")
+            }
+            .buttonStyle(.plain)
+            .disabled(findTotalMatches == 0)
+            .help("reader_find_previous".loc)
+
+            Button {
+                findDirection = .next
+                findNavigationTrigger = UUID()
+            } label: {
+                Image(systemName: "chevron.down")
+            }
+            .buttonStyle(.plain)
+            .disabled(findTotalMatches == 0)
+            .help("reader_find_next".loc)
+
+            Button {
+                showFindBar = false
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("reader_find_close".loc)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
         .background(.bar)
     }
 
@@ -162,5 +252,3 @@ private struct ReaderToolbarButton: View {
         .accessibilityLabel(title)
     }
 }
-
-

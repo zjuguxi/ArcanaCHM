@@ -57,6 +57,13 @@
 "reader_switch_dark" = "切换到夜间模式";
 "reader_importing" = "正在导入文档...";
 
+/* Find in Page */
+"reader_find" = "在页面中查找";
+"reader_find_placeholder" = "查找...";
+"reader_find_previous" = "上一个匹配";
+"reader_find_next" = "下一个匹配";
+"reader_find_close" = "关闭查找栏";
+
 /* Favorites */
 "favorites_no_bookmarks" = "暂无收藏";
 "favorites_help_open" = "打开收藏：%@";

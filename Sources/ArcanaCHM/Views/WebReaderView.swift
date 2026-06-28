@@ -1,6 +1,10 @@
 import SwiftUI
 import WebKit
 
+enum FindDirection {
+    case next, previous
+}
+
 struct WebReaderView: NSViewRepresentable {
     var book: Book
     var path: String
@@ -12,6 +16,10 @@ struct WebReaderView: NSViewRepresentable {
     var onNavigate: (String) -> Void
     var onScroll: (String, Double) -> Void
     var onTitle: (String) -> Void
+    var findQuery: String
+    var findNavigationTrigger: UUID
+    var findDirection: FindDirection
+    var onFindResults: (Int, Int) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -48,6 +56,16 @@ struct WebReaderView: NSViewRepresentable {
             if context.coordinator.lastNavigationToken != navigationToken {
                 context.coordinator.lastNavigationToken = navigationToken
                 scrollToRequestedPosition(in: webView)
+            }
+            if findQuery != context.coordinator.lastFindQuery {
+                context.coordinator.lastFindQuery = findQuery
+                let escaped = findQuery.javascriptStringLiteral
+                webView.evaluateJavaScript("window.__arcanaFindInPage(\(escaped))")
+            }
+            if findNavigationTrigger != context.coordinator.lastFindNavigationTrigger {
+                context.coordinator.lastFindNavigationTrigger = findNavigationTrigger
+                let dir = findDirection == .next ? "'next'" : "'previous'"
+                webView.evaluateJavaScript("window.__arcanaNavigateFind(\(dir))")
             }
         }
     }
@@ -150,6 +168,19 @@ struct WebReaderView: NSViewRepresentable {
           box-shadow: 0 0 0 1px rgba(226, 169, 29, .35) !important;
           padding: 0 .08em !important;
         }
+        mark.arcana-find-hit {
+          background: #d4edda !important;
+          color: #13211f !important;
+          border-radius: 3px !important;
+          padding: 0 .08em !important;
+        }
+        mark.arcana-find-current {
+          background: #f5a623 !important;
+          color: #13211f !important;
+          border-radius: 3px !important;
+          box-shadow: 0 0 0 2px rgba(226, 169, 29, .5) !important;
+          padding: 0 .08em !important;
+        }
         \(spotlightMode ? "body > * { max-width: 760px !important; margin-left: auto !important; margin-right: auto !important; }" : "")
         """
 
@@ -219,6 +250,67 @@ struct WebReaderView: NSViewRepresentable {
             }
           }
           highlightQuery(query);
+          window.__arcanaFindInPage = function(value) {
+            document.querySelectorAll('mark.arcana-find-hit, mark.arcana-find-current').forEach(function(m) {
+              var t = document.createTextNode(m.textContent || '');
+              m.replaceWith(t);
+              if (t.parentNode) t.parentNode.normalize();
+            });
+            if (!value || value.length < 1) {
+              window.webkit.messageHandlers.reader.postMessage({ type: 'find', count: 0, current: 0 });
+              return;
+            }
+            var needle = value.toLocaleLowerCase();
+            var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+              acceptNode: function(node) {
+                var p = node.parentElement;
+                if (!p || ['SCRIPT','STYLE','TEXTAREA','INPUT','MARK'].includes(p.tagName)) return NodeFilter.FILTER_REJECT;
+                return (node.nodeValue || '').toLocaleLowerCase().includes(needle) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+              }
+            });
+            var nodes = [];
+            while (walker.nextNode()) nodes.push(walker.currentNode);
+            var idx = 0;
+            nodes.forEach(function(node) {
+              var text = node.nodeValue || '';
+              var lower = text.toLocaleLowerCase();
+              var frag = document.createDocumentFragment();
+              var last = 0;
+              var pos = lower.indexOf(needle);
+              while (pos !== -1) {
+                if (pos > last) frag.appendChild(document.createTextNode(text.slice(last, pos)));
+                var mark = document.createElement('mark');
+                mark.className = 'arcana-find-hit';
+                mark.dataset.fi = idx;
+                mark.textContent = text.slice(pos, pos + value.length);
+                frag.appendChild(mark);
+                last = pos + value.length;
+                pos = lower.indexOf(needle, last);
+                idx++;
+              }
+              if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+              node.replaceWith(frag);
+            });
+            window.__arcanaFindCount = idx;
+            window.__arcanaFindCurrent = 0;
+            var first = document.querySelector('mark.arcana-find-hit');
+            if (first) { first.classList.add('arcana-find-current'); first.scrollIntoView({ block: 'center' }); }
+            window.webkit.messageHandlers.reader.postMessage({ type: 'find', count: idx, current: idx > 0 ? 1 : 0 });
+          };
+          window.__arcanaNavigateFind = function(dir) {
+            var marks = document.querySelectorAll('mark.arcana-find-hit');
+            if (!marks.length) return;
+            document.querySelectorAll('mark.arcana-find-current').forEach(function(m) { m.classList.remove('arcana-find-current'); });
+            var cur = -1;
+            for (var i = 0; i < marks.length; i++) { if (marks[i].classList.contains('arcana-find-current')) { cur = i; break; } }
+            var next = dir === 'next' ? cur + 1 : cur - 1;
+            if (next >= marks.length) next = 0;
+            if (next < 0) next = marks.length - 1;
+            marks[next].classList.add('arcana-find-current');
+            marks[next].scrollIntoView({ block: 'center' });
+            window.__arcanaFindCurrent = next;
+            window.webkit.messageHandlers.reader.postMessage({ type: 'find', count: marks.length, current: next + 1 });
+          };
           if (!window.__arcanaScrollHooked) {
             window.__arcanaScrollHooked = true;
             let last = 0;
@@ -245,6 +337,8 @@ struct WebReaderView: NSViewRepresentable {
         var parent: WebReaderView
         var lastHighlightedQuery = ""
         var lastNavigationToken: UUID?
+        var lastFindQuery = ""
+        var lastFindNavigationTrigger = UUID()
         var isContentBlockerReady = false
         weak var webView: WKWebView?
 
@@ -278,6 +372,11 @@ struct WebReaderView: NSViewRepresentable {
             parent.injectStyle(into: webView, scrollToMatch: !parent.normalizedSearchQuery.isEmpty)
             lastHighlightedQuery = parent.normalizedSearchQuery
             lastNavigationToken = parent.navigationToken
+            lastFindQuery = parent.findQuery
+            if !parent.findQuery.isEmpty {
+                let escaped = parent.findQuery.javascriptStringLiteral
+                webView.evaluateJavaScript("window.__arcanaFindInPage(\(escaped))")
+            }
             let y = parent.scrollY
             if y > 0 && parent.normalizedSearchQuery.isEmpty {
                 parent.scrollToRequestedPosition(in: webView)
@@ -328,6 +427,8 @@ struct WebReaderView: NSViewRepresentable {
                 parent.onScroll(parent.path, y)
             } else if type == "title", let title = body["title"] as? String {
                 parent.onTitle(title)
+            } else if type == "find", let count = body["count"] as? Int, let current = body["current"] as? Int {
+                parent.onFindResults(current, count)
             }
         }
     }

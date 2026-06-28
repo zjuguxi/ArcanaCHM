@@ -57,6 +57,13 @@
 "reader_switch_dark" = "Switch to Dark Mode";
 "reader_importing" = "Importing document...";
 
+/* Find in Page */
+"reader_find" = "Find in Page";
+"reader_find_placeholder" = "Find...";
+"reader_find_previous" = "Previous Match";
+"reader_find_next" = "Next Match";
+"reader_find_close" = "Close Find Bar";
+
 /* Favorites */
 "favorites_no_bookmarks" = "No Bookmarks";
 "favorites_help_open" = "Open bookmark: %@";
