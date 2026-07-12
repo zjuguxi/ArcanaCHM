@@ -98,32 +98,34 @@ final class LibraryStore: ObservableObject {
     }
 
     private func refreshLibraryMetadata() async {
-        let booksToRefresh = books
-        var updatedBooks: [Book] = []
-        for book in booksToRefresh {
-            var updated = book
-            let needsReparse = updated.toc.isEmpty || anyNilPath(in: updated.toc)
-            if needsReparse {
-                let parser = TOCParser(rootURL: updated.rootURL)
-                let toc = parser.parse()
-                if !toc.isEmpty {
-                    updated.toc = toc
-                    updated.homePath = parser.homePath(from: toc) ?? updated.homePath
-                }
-            }
-            if updated.contentFingerprint == nil {
-                updated.contentFingerprint = ContentFingerprint.hashDirectory(updated.rootURL)
-            }
-            updatedBooks.append(updated)
-        }
-        let hasChanges = updatedBooks != books
-        if hasChanges {
-            books = updatedBooks
-            save()
-        }
+        let snapshot = books
+        let updated = await Self.refreshMetadata(for: snapshot)
+        guard updated != books else { return }
+        books = updated
+        save()
     }
 
-    private func anyNilPath(in items: [TOCItem]) -> Bool {
+    private nonisolated static func refreshMetadata(for books: [Book]) async -> [Book] {
+        var results: [Book] = []
+        for var book in books {
+            let needsReparse = book.toc.isEmpty || anyNilPath(in: book.toc)
+            if needsReparse {
+                let parser = TOCParser(rootURL: book.rootURL)
+                let toc = parser.parse()
+                if !toc.isEmpty {
+                    book.toc = toc
+                    book.homePath = parser.homePath(from: toc) ?? book.homePath
+                }
+            }
+            if book.contentFingerprint == nil {
+                book.contentFingerprint = ContentFingerprint.hashDirectory(book.rootURL)
+            }
+            results.append(book)
+        }
+        return results
+    }
+
+    private nonisolated static func anyNilPath(in items: [TOCItem]) -> Bool {
         for item in items {
             if item.path == nil { return true }
             if anyNilPath(in: item.children) { return true }
