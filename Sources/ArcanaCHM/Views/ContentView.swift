@@ -9,6 +9,7 @@ struct ContentView: View {
     @State private var lastCompletedSearch: (query: String, hits: [SearchHit])?
     @State private var isSearching = false
     @State private var selectedTab = "toc"
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @AppStorage("ArcanaCHM.searchHistory") private var searchHistoryStorage = "[]"
 
     private var searchHistory: [String] {
@@ -27,7 +28,7 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             LibrarySidebar()
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260)
         } content: {
