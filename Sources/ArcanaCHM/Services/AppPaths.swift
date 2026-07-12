@@ -2,8 +2,9 @@ import Foundation
 
 enum AppPaths {
     private static let _appSupport: URL = {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("ArcanaCHM", isDirectory: true)
+        let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support", isDirectory: true)
+        return supportDir.appendingPathComponent("ArcanaCHM", isDirectory: true)
     }()
 
     static var appSupport: URL { _appSupport }

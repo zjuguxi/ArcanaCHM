@@ -51,9 +51,10 @@ enum SecurityPolicy {
         let candidate = root.appendingPathComponent(basePath).standardizedFileURL.resolvingSymlinksInPath()
         guard isDescendant(candidate, of: root) else { return nil }
         if hashParts.count > 1 {
-            var components = URLComponents(url: candidate, resolvingAgainstBaseURL: false)!
-            components.fragment = hashParts[1]
-            return components.url!
+            if var components = URLComponents(url: candidate, resolvingAgainstBaseURL: false) {
+                components.fragment = hashParts[1]
+                return components.url ?? candidate
+            }
         }
         return candidate
     }
