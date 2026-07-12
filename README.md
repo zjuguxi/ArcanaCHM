@@ -4,6 +4,8 @@
 
 A local-first macOS CHM reader. Native SwiftUI, offline by design.
 
+**Website:** https://zjuguxi.github.io/ArcanaCHM/
+
 ## Features
 
 - Three-pane SwiftUI layout with WebKit reading surface.

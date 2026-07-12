@@ -4,6 +4,8 @@
 
 本地优先的 macOS CHM 阅读器。原生 SwiftUI，离线运行。
 
+**主页：** https://zjuguxi.github.io/ArcanaCHM/
+
 ## 功能
 
 - 三栏 SwiftUI 布局，WebKit 阅读引擎。
