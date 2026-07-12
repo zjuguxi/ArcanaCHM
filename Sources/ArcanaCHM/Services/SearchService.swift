@@ -11,15 +11,18 @@ private let removeTitleTagRegex = try! NSRegularExpression(pattern: #"</?title[^
 final class SearchService {
     private let fileManager = FileManager.default
 
-    func search(_ query: String, in book: Book) -> [SearchHit] {
+    func search(_ query: String, in book: Book) async -> [SearchHit] {
         let needle = query.lowercased()
         let rootPath = book.rootURL.standardizedFileURL.resolvingSymlinksInPath().path
         guard let enumerator = fileManager.enumerator(at: book.rootURL, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]) else {
             return []
         }
 
+        let urls = enumerator.allObjects.compactMap { $0 as? URL }
+
         var hits: [SearchHit] = []
-        for case let url as URL in enumerator {
+        var processed = 0
+        for url in urls {
             guard hits.count < 80 else { break }
             guard isSafeRegularFile(url, rootPath: rootPath) else { continue }
             guard ["html", "htm", "xhtml"].contains(url.pathExtension.lowercased()) else { continue }
@@ -33,6 +36,11 @@ final class SearchService {
                 path: relativePath(url, rootPath: rootPath),
                 snippet: snippet
             ))
+
+            processed += 1
+            if processed & 0xF == 0 {
+                await Task.yield()
+            }
         }
         return hits
     }
