@@ -83,12 +83,23 @@ struct WebReaderView: NSViewRepresentable {
 
     private func load(_ webView: WKWebView) {
         webView.appearance = NSAppearance(named: .aqua)
-        webView.loadFileURL(fileURL(), allowingReadAccessTo: book.rootURL)
+        let url = fileURL()
+        if url == book.rootURL {
+            webView.loadHTMLString(Self.pageNotFoundHTML(title: book.title), baseURL: nil)
+        } else {
+            webView.loadFileURL(url, allowingReadAccessTo: book.rootURL)
+        }
     }
 
     private func fileURL() -> URL {
-        SecurityPolicy.safeFileURL(rootURL: book.rootURL, relativePath: path)
-            ?? book.rootURL
+        if let safe = SecurityPolicy.safeFileURL(rootURL: book.rootURL, relativePath: path) {
+            return safe
+        }
+        if let homePath = book.homePath,
+           let homeURL = SecurityPolicy.safeFileURL(rootURL: book.rootURL, relativePath: homePath) {
+            return homeURL
+        }
+        return book.rootURL
     }
 
     private var normalizedSearchQuery: String {
@@ -329,6 +340,17 @@ struct WebReaderView: NSViewRepresentable {
     }
     window.webkit.messageHandlers.reader.postMessage({ type: 'title', title: document.title || '' });
     """
+
+    private static func pageNotFoundHTML(title: String) -> String {
+        """
+        <html><head><meta charset="utf-8"><style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; text-align: center;
+               color: #60716d; margin-top: 120px; font-size: 15px; }
+        </style></head><body>
+        <p>&#128218; \("reader_page_not_found".loc)</p>
+        </body></html>
+        """
+    }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var parent: WebReaderView

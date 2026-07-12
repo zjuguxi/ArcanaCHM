@@ -38,9 +38,8 @@ final class LibraryStore: ObservableObject {
                 books = try JSONDecoder.reader.decode([Book].self, from: data)
             }
             books = books.filter { SecurityPolicy.isInsideAppBooks($0.rootURL) }
-            refreshImportedTOCs()
-            refreshContentFingerprints()
             selectedBookID = books.first?.id
+            await refreshLibraryMetadata()
         } catch {
             try? loadFromBackup()
         }
@@ -58,31 +57,32 @@ final class LibraryStore: ObservableObject {
             books = try JSONDecoder.reader.decode([Book].self, from: backupData)
         }
         books = books.filter { SecurityPolicy.isInsideAppBooks($0.rootURL) }
-        refreshImportedTOCs()
-        refreshContentFingerprints()
         selectedBookID = books.first?.id
         save()
         errorMessage = "library_corrupted_restored".loc
+        Task { await refreshLibraryMetadata() }
     }
 
-    private var saveWorkItem: DispatchWorkItem?
+    private var saveDebounceTask: Task<Void, Never>?
 
     func save() {
+        saveDebounceTask?.cancel()
+        saveDebounceTask = nil
         saveImmediately(backup: true)
     }
 
     func saveDebounced() {
-        saveWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
+        saveDebounceTask?.cancel()
+        saveDebounceTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
             self?.saveImmediately(backup: false)
         }
-        saveWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
     }
 
     private func saveImmediately(backup: Bool = true) {
-        saveWorkItem?.cancel()
-        saveWorkItem = nil
+        saveDebounceTask?.cancel()
+        saveDebounceTask = nil
         do {
             try AppPaths.ensure()
             if backup && FileManager.default.fileExists(atPath: AppPaths.libraryFile.path) {
@@ -97,20 +97,28 @@ final class LibraryStore: ObservableObject {
         }
     }
 
-    private func refreshImportedTOCs() {
-        var changed = false
-        for index in books.indices {
-            let book = books[index]
-            let needsReparse = book.toc.isEmpty || anyNilPath(in: book.toc)
-            guard needsReparse else { continue }
-            let parser = TOCParser(rootURL: book.rootURL)
-            let toc = parser.parse()
-            guard !toc.isEmpty else { continue }
-            books[index].toc = toc
-            books[index].homePath = parser.homePath(from: toc) ?? book.homePath
-            changed = true
+    private func refreshLibraryMetadata() async {
+        let booksToRefresh = books
+        var updatedBooks: [Book] = []
+        for book in booksToRefresh {
+            var updated = book
+            let needsReparse = updated.toc.isEmpty || anyNilPath(in: updated.toc)
+            if needsReparse {
+                let parser = TOCParser(rootURL: updated.rootURL)
+                let toc = parser.parse()
+                if !toc.isEmpty {
+                    updated.toc = toc
+                    updated.homePath = parser.homePath(from: toc) ?? updated.homePath
+                }
+            }
+            if updated.contentFingerprint == nil {
+                updated.contentFingerprint = ContentFingerprint.hashDirectory(updated.rootURL)
+            }
+            updatedBooks.append(updated)
         }
-        if changed {
+        let hasChanges = updatedBooks != books
+        if hasChanges {
+            books = updatedBooks
             save()
         }
     }
@@ -121,17 +129,6 @@ final class LibraryStore: ObservableObject {
             if anyNilPath(in: item.children) { return true }
         }
         return false
-    }
-
-    private func refreshContentFingerprints() {
-        var changed = false
-        for index in books.indices where books[index].contentFingerprint == nil {
-            books[index].contentFingerprint = ContentFingerprint.hashDirectory(books[index].rootURL)
-            changed = true
-        }
-        if changed {
-            save()
-        }
     }
 
     func importCHMWithPanel() {
@@ -158,36 +155,30 @@ final class LibraryStore: ObservableObject {
 
     func importCHM(_ url: URL) {
         isImporting = true
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
+        Task {
             do {
-                let book = try CHMImporter().importCHM(from: url)
-                DispatchQueue.main.async {
-                    self.finishImport(book)
-                    self.populateAfterImport(book.id)
-                }
+                let book = try await Task.detached(priority: .userInitiated) {
+                    try CHMImporter().importCHM(from: url)
+                }.value
+                finishImport(book)
+                populateAfterImport(book.id)
             } catch {
-                DispatchQueue.main.async {
-                    self.fail(error)
-                }
+                fail(error)
             }
         }
     }
 
     func importFolder(_ url: URL) {
         isImporting = true
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
+        Task {
             do {
-                let book = try CHMImporter().importExtractedFolder(from: url)
-                DispatchQueue.main.async {
-                    self.finishImport(book)
-                    self.populateAfterImport(book.id)
-                }
+                let book = try await Task.detached(priority: .userInitiated) {
+                    try CHMImporter().importExtractedFolder(from: url)
+                }.value
+                finishImport(book)
+                populateAfterImport(book.id)
             } catch {
-                DispatchQueue.main.async {
-                    self.fail(error)
-                }
+                fail(error)
             }
         }
     }
@@ -243,12 +234,9 @@ final class LibraryStore: ObservableObject {
     func search(_ query: String, in book: Book) async -> [SearchHit] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else { return [] }
-        return await withUnsafeContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let hits = SearchService().search(trimmed, in: book)
-                continuation.resume(returning: hits)
-            }
-        }
+        return await Task.detached(priority: .userInitiated) {
+            SearchService().search(trimmed, in: book)
+        }.value
     }
 
     private func finishImport(_ book: Book) {
@@ -270,23 +258,24 @@ final class LibraryStore: ObservableObject {
 
     private func populateAfterImport(_ bookID: Book.ID) {
         guard let original = books.first(where: { $0.id == bookID }) else { return }
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
-            var book = original
-            CHMImporter.populateBook(&book)
-            DispatchQueue.main.async {
-                guard let idx = self.books.firstIndex(where: { $0.id == bookID }) else { return }
-                if let fingerprint = book.contentFingerprint,
-                   let dupIdx = self.books.firstIndex(where: { $0.id != bookID && $0.contentFingerprint == fingerprint }) {
-                    self.books.remove(at: idx)
-                    self.selectedBookID = self.books[dupIdx].id
-                    self.errorMessage = "library_duplicate".loc
-                    self.removeImportedFiles(for: book)
-                } else {
-                    self.books[idx] = book
-                }
-                self.save()
+        Task {
+            var book = await Task.detached(priority: .userInitiated) { () -> Book in
+                var b = original
+                CHMImporter.populateBook(&b)
+                return b
+            }.value
+            guard let idx = books.firstIndex(where: { $0.id == bookID }) else { return }
+            if let fingerprint = book.contentFingerprint,
+               let dupIdx = books.firstIndex(where: { $0.id != bookID && $0.contentFingerprint == fingerprint }) {
+                books.remove(at: idx)
+                selectedBookID = books[dupIdx].id
+                errorMessage = "library_duplicate".loc
+                removeImportedFiles(for: book)
+            } else {
+                book.id = books[idx].id
+                books[idx] = book
             }
+            save()
         }
     }
 
