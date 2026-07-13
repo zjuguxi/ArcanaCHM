@@ -34,6 +34,12 @@ struct ArcanaCHMApp: App {
                     NotificationCenter.default.post(name: .openFolderRequested, object: nil)
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
+
+                Divider()
+
+                Button("library_rebuild_menu".loc) {
+                    NotificationCenter.default.post(name: .rebuildLibraryRequested, object: nil)
+                }
             }
         }
     }
@@ -42,4 +48,5 @@ struct ArcanaCHMApp: App {
 extension Notification.Name {
     static let importCHMRequested = Notification.Name("ArcanaCHM.importCHMRequested")
     static let openFolderRequested = Notification.Name("ArcanaCHM.openFolderRequested")
+    static let rebuildLibraryRequested = Notification.Name("ArcanaCHM.rebuildLibraryRequested")
 }

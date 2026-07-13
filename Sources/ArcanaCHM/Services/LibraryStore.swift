@@ -13,12 +13,15 @@ final class LibraryStore: ObservableObject {
     @Published var books: [Book] = []
     @Published var selectedBookID: Book.ID?
     @Published var isImporting = false
+    @Published var isRebuildingLibrary = false
+    @Published var rebuildPreview: LibraryRebuildPreview?
     @Published var errorMessage: String?
 
     let scrollPositions: ScrollPositionStore
     private let directories: AppDirectories
     private let fileManager: FileManager
     private let repository: LibraryRepository
+    private let rebuilder: LibraryRebuilder
     private var persistenceTask: Task<Void, Never>?
 
     init(directories: AppDirectories = .production, fileManager: FileManager = .default) {
@@ -26,6 +29,7 @@ final class LibraryStore: ObservableObject {
         self.fileManager = fileManager
         scrollPositions = ScrollPositionStore(directories: directories)
         repository = LibraryRepository(directories: directories)
+        rebuilder = LibraryRebuilder(directories: directories)
     }
 
     var selectedBook: Book? {
@@ -236,6 +240,39 @@ final class LibraryStore: ObservableObject {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else { return [] }
         return await SearchService().search(trimmed, in: book)
+    }
+
+    func prepareLibraryRebuild() async {
+        guard !isImporting, !isRebuildingLibrary else { return }
+        isRebuildingLibrary = true
+        defer { isRebuildingLibrary = false }
+        do {
+            rebuildPreview = try await rebuilder.preview(existingBooks: books)
+        } catch is CancellationError {
+            return
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func cancelLibraryRebuild() {
+        rebuildPreview = nil
+    }
+
+    func applyLibraryRebuild(_ preview: LibraryRebuildPreview) async {
+        guard rebuildPreview?.id == preview.id, !isImporting, !isRebuildingLibrary else { return }
+        isRebuildingLibrary = true
+        defer { isRebuildingLibrary = false }
+        do {
+            let library = LibraryFile(schemaVersion: LibraryRepository.currentSchemaVersion, books: preview.books)
+            _ = try await repository.replaceWithRebuild(library)
+            books = preview.books
+            selectedBookID = books.first?.id
+            rebuildPreview = nil
+            errorMessage = "library_rebuild_completed".loc(books.count)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func finishImport(_ book: Book) {

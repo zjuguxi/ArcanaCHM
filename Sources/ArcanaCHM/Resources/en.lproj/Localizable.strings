@@ -73,6 +73,23 @@
 "library_duplicate" = "This CHM document is already in the library. Opening the existing copy.";
 "library_corrupted_no_backup" = "Library file is corrupted and no backup was found. Please re-import your documents.";
 "library_corrupted_restored" = "Library file was corrupted. Restored from automatic backup. Some data may be lost.";
+"library_rebuild_menu" = "Rebuild Library from Books...";
+"library_rebuild_title" = "Rebuild Library";
+"library_rebuild_explanation" = "ArcanaCHM scanned the managed Books directory. Review the recoverable documents before replacing the library metadata.";
+"library_rebuild_scanning" = "Scanning managed books...";
+"library_rebuild_scanned" = "Directories scanned";
+"library_rebuild_preserved" = "Existing entries preserved";
+"library_rebuild_recovered" = "Entries recovered";
+"library_rebuild_skipped" = "Entries skipped";
+"library_rebuild_books" = "Recoverable Books";
+"library_rebuild_warnings" = "Skipped Entries";
+"library_rebuild_snapshot_note" = "Before rebuilding, the current library file and both backups are copied unchanged to RecoverySnapshots.";
+"library_rebuild_cancel" = "Cancel";
+"library_rebuild_confirm" = "Create Snapshot and Rebuild";
+"library_rebuild_warning_unsafe" = "unsafe or unsupported directory";
+"library_rebuild_warning_no_content" = "no readable HTML content";
+"library_rebuild_warning_duplicate" = "duplicate document content";
+"library_rebuild_completed" = "Library rebuilt successfully with %d books. The previous metadata was preserved in RecoverySnapshots.";
 
 /* Errors */
 "error_no_extractor" = "Cannot find CHM extractor. Please try reinstalling the App, or install manually via `brew install sevenzip`.";
