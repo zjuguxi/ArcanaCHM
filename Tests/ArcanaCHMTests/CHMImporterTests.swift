@@ -5,7 +5,25 @@ final class CHMImporterTests: XCTestCase {
 
     // MARK: - Utilities
 
-    private var importer: CHMImporter { CHMImporter() }
+    private var directories: AppDirectories!
+    private var testRoot: URL!
+    private var importer: CHMImporter { CHMImporter(directories: directories) }
+
+    override func setUpWithError() throws {
+        testRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ArcanaCHMImporterTests-\(UUID().uuidString)", isDirectory: true)
+        directories = AppDirectories(appSupport: testRoot)
+        precondition(testRoot.path.hasPrefix(FileManager.default.temporaryDirectory.path))
+        try directories.ensure()
+    }
+
+    override func tearDownWithError() throws {
+        if let testRoot, testRoot.path.contains("ArcanaCHMImporterTests-") {
+            try? FileManager.default.removeItem(at: testRoot)
+        }
+        directories = nil
+        testRoot = nil
+    }
 
     /// Create a temporary source directory with the given file tree.
     /// `files` maps relative paths to file contents; entries ending in "/" are directories.
@@ -36,7 +54,7 @@ final class CHMImporterTests: XCTestCase {
 
     /// Clean up a book that was imported via `importExtractedFolder`.
     private func cleanUp(book: Book) {
-        if SecurityPolicy.isInsideAppBooks(book.rootURL) {
+        if SecurityPolicy.isInsideBooks(book.rootURL, directories: directories) {
             try? FileManager.default.removeItem(at: book.rootURL)
         }
     }
@@ -66,7 +84,7 @@ final class CHMImporterTests: XCTestCase {
             "ch2.html": "<html><body><h1>Chapter 2</h1></body></html>",
             "style.css": "body { color: red; }",
         ])
-        try AppPaths.ensure()
+        try directories.ensure()
 
         let book = try importAndPopulate(from: source)
         addTeardownBlock { [book] in self.cleanUp(book: book) }
@@ -79,7 +97,7 @@ final class CHMImporterTests: XCTestCase {
         XCTAssertEqual(book.homePath, "ch1.html")
         XCTAssertEqual(book.lastReadPath, book.homePath)
         // files were copied into books directory
-        XCTAssertTrue(SecurityPolicy.isInsideAppBooks(book.rootURL))
+        XCTAssertTrue(SecurityPolicy.isInsideBooks(book.rootURL, directories: directories))
         XCTAssertTrue(FileManager.default.fileExists(atPath: book.rootURL.appendingPathComponent("ch1.html").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: book.rootURL.appendingPathComponent("style.css").path))
     }
@@ -89,7 +107,7 @@ final class CHMImporterTests: XCTestCase {
             "intro.html": "<html><body>Intro</body></html>",
             "advanced.html": "<html><body>Advanced</body></html>",
         ])
-        try AppPaths.ensure()
+        try directories.ensure()
 
         let book = try importAndPopulate(from: source)
         addTeardownBlock { [book] in self.cleanUp(book: book) }
@@ -105,7 +123,7 @@ final class CHMImporterTests: XCTestCase {
         let source = try createSource(files: [
             "index.html": "<html><body>Home</body></html>",
         ])
-        try AppPaths.ensure()
+        try directories.ensure()
 
         let book = try importAndPopulate(from: source)
         addTeardownBlock { [book] in self.cleanUp(book: book) }
@@ -125,7 +143,7 @@ final class CHMImporterTests: XCTestCase {
             """,
             "sub/page.html": "<html><body>Nested</body></html>",
         ])
-        try AppPaths.ensure()
+        try directories.ensure()
 
         let book = try importAndPopulate(from: source)
         addTeardownBlock { [book] in self.cleanUp(book: book) }
@@ -142,7 +160,7 @@ final class CHMImporterTests: XCTestCase {
         let source = try createSource(files: [
             "index.html": "<html><body>Hello</body></html>",
         ])
-        try AppPaths.ensure()
+        try directories.ensure()
 
         var book1 = try importer.importExtractedFolder(from: source)
         addTeardownBlock { [book1] in self.cleanUp(book: book1) }
@@ -159,11 +177,47 @@ final class CHMImporterTests: XCTestCase {
                        "identical sources must produce the same fingerprint")
     }
 
+    func testFingerprintDiffersWhenFileContentsDiffer() throws {
+        let first = try createSource(named: "first", files: [
+            "index.html": "<html><body>First</body></html>",
+        ])
+        let second = try createSource(named: "second", files: [
+            "index.html": "<html><body>Second</body></html>",
+        ])
+
+        var firstBook = try importer.importExtractedFolder(from: first)
+        var secondBook = try importer.importExtractedFolder(from: second)
+        addTeardownBlock { [firstBook, secondBook] in
+            self.cleanUp(book: firstBook)
+            self.cleanUp(book: secondBook)
+        }
+
+        CHMImporter.populateBook(&firstBook)
+        CHMImporter.populateBook(&secondBook)
+        XCTAssertNotEqual(firstBook.contentFingerprint, secondBook.contentFingerprint)
+        XCTAssertTrue(firstBook.contentFingerprint?.hasPrefix("sha256-v2:") == true)
+    }
+
+    func testImportRejectsExpandedContentOverLimit() throws {
+        let source = try createSource(files: [
+            "index.html": String(repeating: "x", count: 128),
+        ])
+        var limits = ExtractionLimits.default
+        limits.maximumExpandedBytes = 32
+        let limitedImporter = CHMImporter(directories: directories, limits: limits)
+
+        XCTAssertThrowsError(try limitedImporter.importExtractedFolder(from: source)) { error in
+            guard case CHMImportError.resourceLimitExceeded = error else {
+                return XCTFail("expected resourceLimitExceeded, got \(error)")
+            }
+        }
+    }
+
     // MARK: - importExtractedFolder — error paths
 
     func testImportExtractedFolder_noReadableContent_emptyDir() throws {
         let source = try createSource(files: [:])
-        try AppPaths.ensure()
+        try directories.ensure()
 
         XCTAssertThrowsError(try importer.importExtractedFolder(from: source)) { error in
             guard case CHMImportError.noReadableContent = error else {
@@ -177,7 +231,7 @@ final class CHMImporterTests: XCTestCase {
             "readme.txt": "hello",
             "data.bin": nil,
         ])
-        try AppPaths.ensure()
+        try directories.ensure()
 
         XCTAssertThrowsError(try importer.importExtractedFolder(from: source)) { error in
             guard case CHMImportError.noReadableContent = error else {
@@ -194,7 +248,7 @@ final class CHMImporterTests: XCTestCase {
             at: source.appendingPathComponent("escape"),
             withDestinationURL: FileManager.default.temporaryDirectory
         )
-        try AppPaths.ensure()
+        try directories.ensure()
 
         XCTAssertThrowsError(try importer.importExtractedFolder(from: source)) { error in
             guard case CHMImportError.unsafeArchiveContent = error else {
@@ -212,15 +266,15 @@ final class CHMImporterTests: XCTestCase {
             at: source.appendingPathComponent("bad"),
             withDestinationURL: FileManager.default.temporaryDirectory
         )
-        try AppPaths.ensure()
+        try directories.ensure()
 
         // Count books directories before
-        let before = try FileManager.default.contentsOfDirectory(at: AppPaths.booksDirectory, includingPropertiesForKeys: nil)
+        let before = try FileManager.default.contentsOfDirectory(at: directories.booksDirectory, includingPropertiesForKeys: nil)
 
         XCTAssertThrowsError(try importer.importExtractedFolder(from: source))
 
         // Verify stub destination was removed
-        let after = try FileManager.default.contentsOfDirectory(at: AppPaths.booksDirectory, includingPropertiesForKeys: nil)
+        let after = try FileManager.default.contentsOfDirectory(at: directories.booksDirectory, includingPropertiesForKeys: nil)
         XCTAssertEqual(before.count, after.count, "failed import must clean up its stub directory")
     }
 
@@ -287,7 +341,7 @@ final class CHMImporterTests: XCTestCase {
             throw XCTSkip("Failed to create test bundle")
         }
 
-        let restricted = CHMImporter(fileManager: RestrictedFileManager())
+        let restricted = CHMImporter(fileManager: RestrictedFileManager(), directories: directories)
         let extractor = restricted.findExtractor(in: bundle)
         XCTAssertNil(extractor)
     }

@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="ArcanaCHM"
+VERSION="${1:-${ARCANA_VERSION:-1.3.3}}"
+BUILD_NUMBER="${ARCANA_BUILD_NUMBER:-1}"
 BUILD_DIR="$ROOT_DIR/.build/release"
 DIST_DIR="$ROOT_DIR/dist"
 APP_DIR="$DIST_DIR/$APP_NAME.app"
@@ -45,9 +47,9 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <key>CFBundleIconFile</key>
   <string>AppIcon</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.3.2</string>
+  <string>$VERSION</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>$BUILD_NUMBER</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>NSHighResolutionCapable</key>
@@ -58,7 +60,33 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 </plist>
 PLIST
 
-echo "Ad-hoc signing..."
-codesign --force --deep --sign - "$APP_DIR" 2>/dev/null || echo "Warning: codesign skipped"
+SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
+if [ "${REQUIRE_SIGNING:-0}" = "1" ] && [ "$SIGNING_IDENTITY" = "-" ]; then
+  echo "Error: APPLE_SIGNING_IDENTITY is required for a release build." >&2
+  exit 1
+fi
+
+echo "Signing nested extractor..."
+if [ "$SIGNING_IDENTITY" = "-" ]; then
+  codesign --force --sign - \
+    --entitlements "$ROOT_DIR/Resources/Extractor.entitlements" \
+    "$RESOURCES_DIR/7zz"
+else
+  codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" \
+    --entitlements "$ROOT_DIR/Resources/Extractor.entitlements" \
+    "$RESOURCES_DIR/7zz"
+fi
+
+echo "Signing application..."
+if [ "$SIGNING_IDENTITY" = "-" ]; then
+  codesign --force --sign - \
+    --entitlements "$ROOT_DIR/Resources/ArcanaCHM.entitlements" \
+    "$APP_DIR"
+else
+  codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" \
+    --entitlements "$ROOT_DIR/Resources/ArcanaCHM.entitlements" \
+    "$APP_DIR"
+fi
+codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 
 echo "Done: $APP_DIR"

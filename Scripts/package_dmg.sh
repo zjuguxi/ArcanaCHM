@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="ArcanaCHM"
-VERSION="$1"
+VERSION="${1:?Usage: Scripts/package_dmg.sh <version>}"
 DMG_NAME="${APP_NAME}-${VERSION}.dmg"
 DIST_DIR="$ROOT_DIR/dist"
 APP_DIR="$DIST_DIR/${APP_NAME}.app"

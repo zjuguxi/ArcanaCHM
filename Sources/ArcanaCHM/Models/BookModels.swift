@@ -1,6 +1,6 @@
 import Foundation
 
-struct Book: Identifiable, Codable, Hashable {
+struct Book: Identifiable, Codable, Hashable, Sendable {
     var id: UUID
     var title: String
     var rootPath: String
@@ -30,7 +30,7 @@ struct Book: Identifiable, Codable, Hashable {
     }
 }
 
-struct TOCItem: Identifiable, Codable, Hashable {
+struct TOCItem: Identifiable, Codable, Hashable, Sendable {
     var id: UUID
     var title: String
     var path: String?
@@ -44,7 +44,7 @@ struct TOCItem: Identifiable, Codable, Hashable {
     }
 }
 
-struct Bookmark: Identifiable, Codable, Hashable {
+struct Bookmark: Identifiable, Codable, Hashable, Sendable {
     var id: UUID
     var title: String
     var path: String
@@ -52,7 +52,7 @@ struct Bookmark: Identifiable, Codable, Hashable {
     var createdAt: Date
 }
 
-struct SearchHit: Identifiable, Hashable {
+struct SearchHit: Identifiable, Hashable, Sendable {
     var id = UUID()
     var title: String
     var path: String
