@@ -10,6 +10,8 @@ struct ContentView: View {
     @State private var isSearching = false
     @State private var selectedTab = "toc"
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var searchTask: Task<Void, Never>?
+    @State private var searchGeneration = UUID()
     @AppStorage("ArcanaCHM.searchHistory") private var searchHistoryStorage = "[]"
 
     private var searchHistory: [String] {
@@ -94,6 +96,13 @@ struct ContentView: View {
                 }
             }
         }
+        .onChange(of: library.selectedBookID) { _, _ in
+            cancelSearch()
+            lastCompletedSearch = nil
+        }
+        .onDisappear {
+            searchTask?.cancel()
+        }
     }
 
     private func runSearch() {
@@ -105,8 +114,12 @@ struct ContentView: View {
         isSearching = true
         reader.searchQuery = query
         rememberSearch(query)
-        Task {
+        searchTask?.cancel()
+        let generation = UUID()
+        searchGeneration = generation
+        searchTask = Task {
             let hits = await library.search(query, in: book)
+            guard !Task.isCancelled, searchGeneration == generation else { return }
             lastCompletedSearch = (query, hits)
             isSearching = false
             selectedTab = "search"
@@ -126,5 +139,12 @@ struct ContentView: View {
 
     private func deleteHistoryItem(_ query: String) {
         searchHistory = searchHistory.filter { $0 != query }
+    }
+
+    private func cancelSearch() {
+        searchTask?.cancel()
+        searchTask = nil
+        searchGeneration = UUID()
+        isSearching = false
     }
 }
