@@ -295,25 +295,30 @@ final class LibraryStore: ObservableObject {
     private func populateAfterImport(_ bookID: Book.ID) {
         guard let original = books.first(where: { $0.id == bookID }) else { return }
         Task {
-            var book = await Task.detached(priority: .userInitiated) { () -> Book in
+            let book = await Task.detached(priority: .userInitiated) { () -> Book in
                 var b = original
                 CHMImporter.populateBook(&b)
                 return b
             }.value
-            guard let idx = books.firstIndex(where: { $0.id == bookID }) else { return }
-            if let fingerprint = book.contentFingerprint,
-               let duplicate = books.first(where: { $0.id != bookID && $0.contentFingerprint == fingerprint }) {
-                let duplicateID = duplicate.id
-                books.remove(at: idx)
-                selectedBookID = duplicateID
-                errorMessage = "library_duplicate".loc
-                removeImportedFiles(for: book)
-            } else {
-                book.id = books[idx].id
-                books[idx] = book
-            }
-            save()
+            applyPopulatedMetadata(book, for: bookID)
         }
+    }
+
+    func applyPopulatedMetadata(_ populatedBook: Book, for bookID: Book.ID) {
+        guard let index = books.firstIndex(where: { $0.id == bookID }) else { return }
+        var book = populatedBook
+        if let fingerprint = book.contentFingerprint,
+           let duplicate = books.first(where: { $0.id != bookID && $0.contentFingerprint == fingerprint }) {
+            let duplicateID = duplicate.id
+            books.remove(at: index)
+            selectedBookID = duplicateID
+            errorMessage = "library_duplicate".loc
+            removeImportedFiles(for: book)
+        } else {
+            book.id = books[index].id
+            books[index] = book
+        }
+        save()
     }
 
     private func sortBooks() {

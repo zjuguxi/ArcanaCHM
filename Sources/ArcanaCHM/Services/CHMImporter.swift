@@ -35,6 +35,8 @@ struct ExtractionLimits: Sendable {
     var maximumDirectoryDepth = 64
     var maximumPathLength = 1_024
     var maximumDuration: TimeInterval = 120
+    var maximumListingDuration: TimeInterval = 30
+    var maximumListingOutputBytes = 32 * 1_024 * 1_024
     var maximumErrorOutputBytes = 64 * 1_024
     var minimumFreeDiskBytes: Int64 = 512 * 1_024 * 1_024
 
@@ -44,6 +46,7 @@ struct ExtractionLimits: Sendable {
 private final class BoundedProcessOutput: @unchecked Sendable {
     private let lock = NSLock()
     private var data = Data()
+    private var truncated = false
     private let maximumBytes: Int
 
     init(maximumBytes: Int) {
@@ -54,8 +57,13 @@ private final class BoundedProcessOutput: @unchecked Sendable {
         guard !newData.isEmpty else { return }
         lock.lock()
         defer { lock.unlock() }
-        guard data.count < maximumBytes else { return }
-        data.append(newData.prefix(maximumBytes - data.count))
+        guard data.count < maximumBytes else {
+            truncated = true
+            return
+        }
+        let remaining = maximumBytes - data.count
+        if newData.count > remaining { truncated = true }
+        data.append(newData.prefix(remaining))
     }
 
     func snapshot() -> Data {
@@ -63,21 +71,134 @@ private final class BoundedProcessOutput: @unchecked Sendable {
         defer { lock.unlock() }
         return data
     }
+
+    var didTruncate: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return truncated
+    }
 }
 
-final class CHMImporter {
+struct ArchiveListingReport: Equatable, Sendable {
+    var fileCount: Int
+    var expandedBytes: Int64
+}
+
+enum SevenZipListingValidator {
+    private struct Entry {
+        var path: String?
+        var size: Int64?
+        var attributes = ""
+        var isFolder = false
+        var isSymbolicLink = false
+    }
+
+    static func validate(_ data: Data, limits: ExtractionLimits) throws -> ArchiveListingReport {
+        guard let listing = String(data: data, encoding: .utf8) else {
+            throw CHMImportError.unsafeArchiveContent("the archive listing is not valid UTF-8")
+        }
+
+        var readingEntries = false
+        var entry = Entry()
+        var fileCount = 0
+        var expandedBytes: Int64 = 0
+        var normalizedPaths = Set<String>()
+
+        func validateEntry() throws {
+            guard let rawPath = entry.path else { return }
+            let path = rawPath.replacingOccurrences(of: "\\", with: "/")
+            let components = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+            let firstScalars = Array((components.first ?? "").unicodeScalars)
+            let isWindowsDrivePath = firstScalars.count == 2
+                && CharacterSet.letters.contains(firstScalars[0])
+                && firstScalars[1] == ":"
+            guard !path.isEmpty,
+                  !path.hasPrefix("/"),
+                  !path.hasPrefix("~"),
+                  components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
+                  !isWindowsDrivePath
+            else {
+                throw CHMImportError.unsafeArchiveContent("the archive contains an absolute or traversing path")
+            }
+            guard path.utf8.count <= limits.maximumPathLength else {
+                throw CHMImportError.resourceLimitExceeded("an archive path exceeds the length limit")
+            }
+            guard components.count <= limits.maximumDirectoryDepth else {
+                throw CHMImportError.resourceLimitExceeded("archive directory depth exceeds the limit")
+            }
+            guard !entry.isSymbolicLink, !entry.attributes.localizedCaseInsensitiveContains("L") else {
+                throw CHMImportError.unsafeArchiveContent("symbolic links are not allowed in imported content")
+            }
+
+            let collisionKey = path.precomposedStringWithCanonicalMapping.lowercased(with: Locale(identifier: "en_US_POSIX"))
+            guard normalizedPaths.insert(collisionKey).inserted else {
+                throw CHMImportError.unsafeArchiveContent("the archive contains duplicate or case-conflicting paths")
+            }
+
+            guard !entry.isFolder, !entry.attributes.localizedCaseInsensitiveContains("D") else { return }
+            guard let size = entry.size, size >= 0 else {
+                throw CHMImportError.unsafeArchiveContent("an archive entry has no valid declared size")
+            }
+            guard size <= limits.maximumSingleFileBytes else {
+                throw CHMImportError.resourceLimitExceeded("an archive entry exceeds the size limit")
+            }
+            fileCount += 1
+            guard fileCount <= limits.maximumFileCount else {
+                throw CHMImportError.resourceLimitExceeded("archive contains too many files")
+            }
+            let (newTotal, overflow) = expandedBytes.addingReportingOverflow(size)
+            guard !overflow, newTotal <= limits.maximumExpandedBytes else {
+                throw CHMImportError.resourceLimitExceeded("archive declared size exceeds the expansion limit")
+            }
+            expandedBytes = newTotal
+        }
+
+        for rawLine in listing.split(separator: "\n", omittingEmptySubsequences: false) {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            if line == "----------" {
+                readingEntries = true
+                entry = Entry()
+                continue
+            }
+            guard readingEntries else { continue }
+            if line.isEmpty {
+                try validateEntry()
+                entry = Entry()
+                continue
+            }
+            let parts = line.components(separatedBy: " = ")
+            guard parts.count >= 2 else { continue }
+            let value = parts.dropFirst().joined(separator: " = ")
+            switch parts[0] {
+            case "Path": entry.path = value
+            case "Size": entry.size = Int64(value)
+            case "Attributes": entry.attributes = value
+            case "Folder": entry.isFolder = value == "+"
+            case "Symbolic Link": entry.isSymbolicLink = !value.isEmpty
+            default: break
+            }
+        }
+        try validateEntry()
+        return ArchiveListingReport(fileCount: fileCount, expandedBytes: expandedBytes)
+    }
+}
+
+final class CHMImporter: @unchecked Sendable {
     private let fileManager: FileManager
     private let directories: AppDirectories
     private let limits: ExtractionLimits
+    private let extractorOverride: Extractor?
 
     init(
         fileManager: FileManager = .default,
         directories: AppDirectories = .production,
-        limits: ExtractionLimits = .default
+        limits: ExtractionLimits = .default,
+        extractorOverride: Extractor? = nil
     ) {
         self.fileManager = fileManager
         self.directories = directories
         self.limits = limits
+        self.extractorOverride = extractorOverride
     }
 
     func importCHM(from sourceURL: URL) throws -> Book {
@@ -127,9 +248,10 @@ final class CHMImporter {
     }
 
     private func extract(sourceURL: URL, destination: URL) throws {
-        guard let extractor = findExtractor() else {
+        guard let extractor = extractorOverride ?? findExtractor() else {
             throw CHMImportError.extractorMissing
         }
+        try preflightArchive(sourceURL, using: extractor)
 
         let process = Process()
         process.executableURL = extractor.url
@@ -150,6 +272,11 @@ final class CHMImporter {
         var extractionError: Error?
         while process.isRunning {
             Thread.sleep(forTimeInterval: 0.05)
+            if currentTaskIsCancelled {
+                extractionError = CancellationError()
+                stop(process)
+                break
+            }
             if Date() >= deadline {
                 extractionError = CHMImportError.extractionTimedOut
                 stop(process)
@@ -177,6 +304,61 @@ final class CHMImporter {
             let message = String(data: capturedErrorOutput, encoding: .utf8) ?? "exit code \(process.terminationStatus)"
             throw CHMImportError.extractionFailed(message.trimmingCharacters(in: .whitespacesAndNewlines))
         }
+    }
+
+    private func preflightArchive(_ sourceURL: URL, using extractor: Extractor) throws {
+        guard let arguments = extractor.listingArguments(sourceURL) else { return }
+
+        let process = Process()
+        process.executableURL = extractor.url
+        process.arguments = arguments
+
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        let output = BoundedProcessOutput(maximumBytes: limits.maximumListingOutputBytes)
+        let errors = BoundedProcessOutput(maximumBytes: limits.maximumErrorOutputBytes)
+        outputPipe.fileHandleForReading.readabilityHandler = { output.append($0.availableData) }
+        errorPipe.fileHandleForReading.readabilityHandler = { errors.append($0.availableData) }
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+
+        try process.run()
+        let deadline = Date().addingTimeInterval(limits.maximumListingDuration)
+        var preflightError: Error?
+        while process.isRunning {
+            Thread.sleep(forTimeInterval: 0.05)
+            if currentTaskIsCancelled {
+                preflightError = CancellationError()
+                stop(process)
+                break
+            }
+            if Date() >= deadline {
+                preflightError = CHMImportError.extractionTimedOut
+                stop(process)
+                break
+            }
+        }
+        process.waitUntilExit()
+        outputPipe.fileHandleForReading.readabilityHandler = nil
+        errorPipe.fileHandleForReading.readabilityHandler = nil
+        output.append(outputPipe.fileHandleForReading.readDataToEndOfFile())
+        errors.append(errorPipe.fileHandleForReading.readDataToEndOfFile())
+
+        if let preflightError { throw preflightError }
+        guard !output.didTruncate else {
+            throw CHMImportError.resourceLimitExceeded("archive listing exceeds the inspection limit")
+        }
+        guard process.terminationStatus == 0 else {
+            let message = String(data: errors.snapshot(), encoding: .utf8) ?? "exit code \(process.terminationStatus)"
+            throw CHMImportError.extractionFailed(message.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        _ = try SevenZipListingValidator.validate(output.snapshot(), limits: limits)
+    }
+
+    private var currentTaskIsCancelled: Bool {
+        var isCancelled = false
+        withUnsafeCurrentTask { isCancelled = $0?.isCancelled == true }
+        return isCancelled
     }
 
     private func buildMinimalBook(title: String, rootURL: URL) throws -> Book {
@@ -333,6 +515,15 @@ struct Extractor {
             return ["x", "-y", "-o\(destination.path)", source.path]
         case .unar:
             return ["-quiet", "-force-overwrite", "-output-directory", destination.path, source.path]
+        }
+    }
+
+    func listingArguments(_ source: URL) -> [String]? {
+        switch kind {
+        case .sevenZip:
+            return ["l", "-slt", "--", source.path]
+        case .unar:
+            return nil
         }
     }
 }

@@ -181,6 +181,19 @@ final class LibraryStoreTests: XCTestCase {
         XCTAssertEqual(store.books[0].title, "Alone")
     }
 
+    func testDuplicatePopulationUsesStableIDAfterRemovingEarlierIndex() {
+        var imported = makeBook(title: "Imported")
+        imported.contentFingerprint = "sha256-v2:same"
+        var existing = makeBook(title: "Existing")
+        existing.contentFingerprint = imported.contentFingerprint
+        store.books = [imported, existing]
+
+        store.applyPopulatedMetadata(imported, for: imported.id)
+
+        XCTAssertEqual(store.books.map(\.id), [existing.id])
+        XCTAssertEqual(store.selectedBookID, existing.id)
+    }
+
     func testTogglePin() {
         let book = makeBook(title: "Pin Me")
         store.books = [book]
