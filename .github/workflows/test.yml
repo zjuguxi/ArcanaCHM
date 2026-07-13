@@ -5,9 +5,25 @@ on:
   pull_request:
     branches: master
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
-      - run: swift test
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - name: Strict concurrency build
+        run: swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Unit and performance tests
+        run: swift test
+
+  address-sanitizer:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - run: swift test --sanitize=address

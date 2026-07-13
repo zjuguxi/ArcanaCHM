@@ -18,7 +18,7 @@
 - 浅色 / 深色主题，字体缩放，专注模式。
 - `library.json` 自动备份 — 文件损坏时自动从备份恢复。
 - 路径沙箱保护 — 不会访问 app 数据目录以外的文件。
-- 130 个单元测试，覆盖安全策略、TOC 解析、书库持久化、CHM 导入、编码、数据模型。
+- 176 个单元与性能测试，覆盖安全策略、TOC 解析、隔离的书库持久化、受限 CHM 导入、编码和数据模型。
 
 ## 系统要求
 
@@ -28,11 +28,13 @@
 
 ```bash
 swift build                       # 编译可执行文件
-Scripts/package_app.sh            # 生成 dist/ArcanaCHM.app
-Scripts/package_dmg.sh 1.3.2      # 生成可分发的 DMG
+Scripts/package_app.sh 1.3.5      # 生成本地 ad-hoc 签名应用
+Scripts/package_dmg.sh 1.3.5      # 生成可分发的 DMG
 ```
 
-打包过程中会自动对 app 进行 ad-hoc 签名，避免 macOS 误报「应用已损坏」。
+本地包使用 ad-hoc 签名。Git 标签发布必须在 GitHub Actions 中完成 Developer ID 签名、Hardened Runtime、公证和 stapling。内置 7-Zip 的归档与二进制都会校验固定 SHA-256。
+
+导入归档受文件数量、大小、目录深度、磁盘空间和执行时间限制。应用数据路径采用依赖注入，测试只使用带唯一名称的临时目录，不会访问生产书库。
 
 ## 使用
 

@@ -18,7 +18,7 @@ A local-first macOS CHM reader. Native SwiftUI, offline by design.
 - Light & dark reading themes, font scaling, focus mode.
 - Automatic backup of `library.json` — corrupt files are restored from backup.
 - Path sandboxing — no access outside the app's own data directory.
-- 130 unit tests covering security policy, TOC parsing, library persistence, CHM importer, encoding, models.
+- 176 unit and performance tests covering security policy, TOC parsing, isolated library persistence, bounded CHM import, encoding, and models.
 
 ## Requirements
 
@@ -28,11 +28,13 @@ A local-first macOS CHM reader. Native SwiftUI, offline by design.
 
 ```bash
 swift build                       # build executable
-Scripts/package_app.sh            # create dist/ArcanaCHM.app
-Scripts/package_dmg.sh 1.3.2      # create distributable DMG
+Scripts/package_app.sh 1.3.5      # create an ad-hoc signed local app
+Scripts/package_dmg.sh 1.3.5      # create distributable DMG
 ```
 
-The app is ad-hoc signed during packaging to prevent macOS's misleading "damaged" alert.
+Local packages are ad-hoc signed. Tagged releases require Developer ID signing, Hardened Runtime, notarization, and stapling in GitHub Actions. The bundled 7-Zip archive and binary are verified against pinned SHA-256 values.
+
+Imported archives are subject to file-count, size, depth, disk-space, and time limits. App data paths are dependency-injected so tests only use uniquely named temporary directories and never the production library.
 
 ## Use
 

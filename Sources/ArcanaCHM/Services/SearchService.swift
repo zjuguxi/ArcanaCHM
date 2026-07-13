@@ -10,22 +10,35 @@ private let removeTitleTagRegex = try! NSRegularExpression(pattern: #"</?title[^
 
 final class SearchService {
     private let fileManager = FileManager.default
+    private let maximumFileBytes = 16 * 1_024 * 1_024
+    private let maximumSearchBytes = 256 * 1_024 * 1_024
+    private let maximumFiles = 50_000
 
     func search(_ query: String, in book: Book) async -> [SearchHit] {
         let needle = query.lowercased()
         let rootPath = book.rootURL.standardizedFileURL.resolvingSymlinksInPath().path
-        guard let enumerator = fileManager.enumerator(at: book.rootURL, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]) else {
+        guard let enumerator = fileManager.enumerator(at: book.rootURL, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]) else {
             return []
         }
 
-        let urls = enumerator.allObjects.compactMap { $0 as? URL }
-
         var hits: [SearchHit] = []
         var processed = 0
-        for url in urls {
+        var searchedBytes = 0
+        while let item = enumerator.nextObject() {
+            guard let url = item as? URL else { continue }
+            if Task.isCancelled { return [] }
             guard hits.count < 80 else { break }
-            guard isSafeRegularFile(url, rootPath: rootPath) else { continue }
+            guard let fileSize = safeRegularFileSize(url, rootPath: rootPath) else { continue }
             guard ["html", "htm", "xhtml"].contains(url.pathExtension.lowercased()) else { continue }
+            guard fileSize <= maximumFileBytes,
+                  searchedBytes + fileSize <= maximumSearchBytes,
+                  processed < maximumFiles else { continue }
+            searchedBytes += fileSize
+            processed += 1
+            if processed & 0xF == 0 {
+                await Task.yield()
+                if Task.isCancelled { return [] }
+            }
             guard let raw = readText(url) else { continue }
 
             let plain = stripHTML(raw)
@@ -33,26 +46,22 @@ final class SearchService {
             let snippet = snippetAround(needle, in: plain)
             hits.append(SearchHit(
                 title: title(from: raw, fallback: url.deletingPathExtension().lastPathComponent),
-                path: relativePath(url, rootPath: rootPath),
+                path: SecurityPolicy.relativePath(path: url.standardizedFileURL.resolvingSymlinksInPath().path, rootPath: rootPath) ?? url.lastPathComponent,
                 snippet: snippet
             ))
-
-            processed += 1
-            if processed & 0xF == 0 {
-                await Task.yield()
-            }
         }
         return hits
     }
 
-    private func isSafeRegularFile(_ url: URL, rootPath: String) -> Bool {
-        guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]),
+    private func safeRegularFileSize(_ url: URL, rootPath: String) -> Int? {
+        guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
               values.isRegularFile == true,
               values.isSymbolicLink != true
         else {
-            return false
+            return nil
         }
-        return SecurityPolicy.isDescendant(url, rootPath: rootPath)
+        guard SecurityPolicy.isDescendant(url, rootPath: rootPath) else { return nil }
+        return max(0, values.fileSize ?? 0)
     }
 
     private func stripHTML(_ html: String) -> String {
@@ -80,12 +89,6 @@ final class SearchService {
         let lower = text.index(range.lowerBound, offsetBy: -90, limitedBy: text.startIndex) ?? text.startIndex
         let upper = text.index(range.upperBound, offsetBy: 160, limitedBy: text.endIndex) ?? text.endIndex
         return String(text[lower..<upper]).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func relativePath(_ url: URL, rootPath: String) -> String {
-        let path = url.standardizedFileURL.path
-        guard path.hasPrefix(rootPath) else { return url.lastPathComponent }
-        return String(path.dropFirst(rootPath.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     }
 
 }

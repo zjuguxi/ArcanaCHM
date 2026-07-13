@@ -1,6 +1,7 @@
 import XCTest
 @testable import ArcanaCHM
 
+@MainActor
 final class FindInPageTests: XCTestCase {
 
     // MARK: - Navigation algorithm (mirrors JS __arcanaNavigateFind)

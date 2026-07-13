@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 
+@MainActor
 final class LocalizationService: ObservableObject {
 
     static let shared = LocalizationService()
@@ -10,23 +11,11 @@ final class LocalizationService: ObservableObject {
         case en = "en"
         case zh = "zh-hans"
 
-        var displayName: String {
-            switch self {
-            case .system: return localized("language_system")
-            case .en: return localized("language_english")
-            case .zh: return localized("language_chinese")
-            }
-        }
-
         var identifier: String? {
             switch self {
             case .system: return nil
             case .en, .zh: return rawValue
             }
-        }
-
-        private func localized(_ key: String) -> String {
-            LocalizationService.shared.localizedString(key)
         }
     }
 
@@ -71,6 +60,7 @@ final class LocalizationService: ObservableObject {
     }
 }
 
+@MainActor
 extension String {
     var loc: String {
         LocalizationService.shared.localizedString(self)
