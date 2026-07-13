@@ -213,6 +213,111 @@ final class CHMImporterTests: XCTestCase {
         }
     }
 
+    func testArchiveListingPreflightAcceptsBoundedFiles() throws {
+        let listing = sevenZipListing([
+            ("index.html", 128, "....A", false),
+            ("images", nil, "D....", true),
+            ("images/map.png", 512, "....A", false),
+        ])
+
+        let report = try SevenZipListingValidator.validate(Data(listing.utf8), limits: .default)
+
+        XCTAssertEqual(report, ArchiveListingReport(fileCount: 2, expandedBytes: 640))
+    }
+
+    func testArchiveListingPreflightAllowsCHMInternalStreamNames() throws {
+        let listing = sevenZipListing([("::DataSpace/Storage/content", 16, "....A", false)])
+
+        let report = try SevenZipListingValidator.validate(Data(listing.utf8), limits: .default)
+
+        XCTAssertEqual(report, ArchiveListingReport(fileCount: 1, expandedBytes: 16))
+    }
+
+    func testArchiveListingPreflightRejectsTraversalBeforeExtraction() throws {
+        let listing = sevenZipListing([("../outside.html", 1, "....A", false)])
+
+        XCTAssertThrowsError(try SevenZipListingValidator.validate(Data(listing.utf8), limits: .default)) { error in
+            guard case CHMImportError.unsafeArchiveContent = error else {
+                return XCTFail("expected unsafeArchiveContent, got \(error)")
+            }
+        }
+    }
+
+    func testArchiveListingPreflightRejectsCaseConflictingPaths() throws {
+        let listing = sevenZipListing([
+            ("Rules/Index.html", 1, "....A", false),
+            ("rules/index.html", 1, "....A", false),
+        ])
+
+        XCTAssertThrowsError(try SevenZipListingValidator.validate(Data(listing.utf8), limits: .default)) { error in
+            guard case CHMImportError.unsafeArchiveContent = error else {
+                return XCTFail("expected unsafeArchiveContent, got \(error)")
+            }
+        }
+    }
+
+    func testArchiveListingPreflightRejectsDeclaredExpansionOverLimit() throws {
+        let listing = sevenZipListing([("large.html", 128, "....A", false)])
+        var limits = ExtractionLimits.default
+        limits.maximumExpandedBytes = 64
+
+        XCTAssertThrowsError(try SevenZipListingValidator.validate(Data(listing.utf8), limits: limits)) { error in
+            guard case CHMImportError.resourceLimitExceeded = error else {
+                return XCTFail("expected resourceLimitExceeded, got \(error)")
+            }
+        }
+    }
+
+    func testImportCHMRejectsUnsafeListingBeforeExtractorWrites() throws {
+        let script = try createExtractorScript(
+            listing: """
+            mock
+            ----------
+            Path = ../outside.html
+            Size = 1
+            Attributes = ....A
+            Folder = -
+
+            """
+        )
+        let source = testRoot.appendingPathComponent("unsafe.chm")
+        try Data("mock archive".utf8).write(to: source)
+        let guardedImporter = CHMImporter(
+            directories: directories,
+            extractorOverride: Extractor(url: script, kind: .sevenZip)
+        )
+
+        XCTAssertThrowsError(try guardedImporter.importCHM(from: source)) { error in
+            guard case CHMImportError.unsafeArchiveContent = error else {
+                return XCTFail("expected unsafeArchiveContent, got \(error)")
+            }
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: script.path + ".extracted"))
+    }
+
+    func testImportCancellationTerminatesArchiveListing() async throws {
+        let script = try createExtractorScript(listing: nil)
+        let source = testRoot.appendingPathComponent("slow.chm")
+        try Data("mock archive".utf8).write(to: source)
+        let cancellableImporter = CHMImporter(
+            directories: directories,
+            extractorOverride: Extractor(url: script, kind: .sevenZip)
+        )
+        let task = Task.detached { try cancellableImporter.importCHM(from: source) }
+
+        try await Task.sleep(nanoseconds: 150_000_000)
+        task.cancel()
+
+        do {
+            _ = try await task.value
+            XCTFail("expected cancellation")
+        } catch is CancellationError {
+            // Expected: the child process is terminated and the temporary destination is cleaned up.
+        } catch {
+            XCTFail("expected CancellationError, got \(error)")
+        }
+    }
+
     // MARK: - importExtractedFolder — error paths
 
     func testImportExtractedFolder_noReadableContent_emptyDir() throws {
@@ -347,6 +452,45 @@ final class CHMImporterTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    private func sevenZipListing(_ entries: [(path: String, size: Int?, attributes: String, folder: Bool)]) -> String {
+        var lines = ["7-Zip mock listing", "----------"]
+        for entry in entries {
+            lines.append("Path = \(entry.path)")
+            if let size = entry.size { lines.append("Size = \(size)") }
+            lines.append("Attributes = \(entry.attributes)")
+            lines.append("Folder = \(entry.folder ? "+" : "-")")
+            lines.append("")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private func createExtractorScript(listing: String?) throws -> URL {
+        let script = testRoot.appendingPathComponent("mock-7zz-\(UUID().uuidString)")
+        let source: String
+        if let listing {
+            source = """
+            #!/bin/sh
+            if [ "$1" = "l" ]; then
+              printf '%s' '\(listing)'
+              exit 0
+            fi
+            touch "$0.extracted"
+            exit 1
+            """
+        } else {
+            source = """
+            #!/bin/sh
+            if [ "$1" = "l" ]; then
+              exec /bin/sleep 10
+            fi
+            exit 1
+            """
+        }
+        try Data(source.utf8).write(to: script)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+        return script
+    }
 
     private func createTestBundle(withExecutable name: String) throws -> Bundle {
         let tmp = FileManager.default.temporaryDirectory
