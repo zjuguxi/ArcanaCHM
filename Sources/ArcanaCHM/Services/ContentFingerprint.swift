@@ -2,41 +2,61 @@ import CryptoKit
 import Foundation
 
 enum ContentFingerprint {
+    private static let algorithm = "sha256-v2"
+    private static let chunkSize = 1_048_576
+
     static func hashDirectory(_ rootURL: URL) -> String? {
-        let rootPath = rootURL.standardizedFileURL.resolvingSymlinksInPath().path
+        let root = rootURL.standardizedFileURL.resolvingSymlinksInPath()
+        let rootPath = root.path
         let fileManager = FileManager.default
         guard let enumerator = fileManager.enumerator(
-            at: rootURL,
-            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
+            at: root,
+            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey],
             options: [.skipsHiddenFiles]
         ) else {
             return nil
         }
 
-        var hhcData: Data?
-        var fileCount = 0
-
-        for case let url as URL in enumerator {
-            guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]),
-                  values.isRegularFile == true
-                    && values.isSymbolicLink != true
-                    && SecurityPolicy.isDescendant(url, rootPath: rootPath)
+        let files = enumerator.compactMap { item -> (URL, String, UInt64)? in
+            guard let url = item as? URL,
+                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
+                  values.isRegularFile == true,
+                  values.isSymbolicLink != true,
+                  let relative = SecurityPolicy.relativePath(path: url.standardizedFileURL.resolvingSymlinksInPath().path, rootPath: rootPath),
+                  !relative.isEmpty
             else {
-                continue
+                return nil
             }
-            fileCount += 1
-            if url.pathExtension.lowercased() == "hhc",
-               let data = try? Data(contentsOf: url) {
-                hhcData = data
-            }
-        }
+            return (url, relative.precomposedStringWithCanonicalMapping, UInt64(max(0, values.fileSize ?? 0)))
+        }.sorted { $0.1.utf8.lexicographicallyPrecedes($1.1.utf8) }
 
         var hasher = SHA256()
-        withUnsafeBytes(of: fileCount) { hasher.update(data: $0) }
-        if let hhcData {
-            hasher.update(data: hhcData)
+        hasher.update(data: Data("\(algorithm)\u{0}".utf8))
+
+        for (url, relative, fileSize) in files {
+            guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+            defer { try? handle.close() }
+
+            let pathData = Data(relative.utf8)
+            updateLength(UInt64(pathData.count), hasher: &hasher)
+            hasher.update(data: pathData)
+            updateLength(fileSize, hasher: &hasher)
+
+            do {
+                while let chunk = try handle.read(upToCount: chunkSize), !chunk.isEmpty {
+                    hasher.update(data: chunk)
+                }
+            } catch {
+                return nil
+            }
         }
 
-        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        return "\(algorithm):\(digest)"
+    }
+
+    private static func updateLength(_ value: UInt64, hasher: inout SHA256) {
+        var length = value.bigEndian
+        withUnsafeBytes(of: &length) { hasher.update(data: Data($0)) }
     }
 }

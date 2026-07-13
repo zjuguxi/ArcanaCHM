@@ -5,9 +5,14 @@ final class ScrollPositionStore {
     private let lock = NSLock()
     private var workItem: DispatchWorkItem?
     private let queue = DispatchQueue(label: "arcana.scrollposition.save", qos: .utility)
+    private let directories: AppDirectories
+
+    init(directories: AppDirectories = .production) {
+        self.directories = directories
+    }
 
     private var storeURL: URL {
-        AppPaths.appSupport.appendingPathComponent("scroll_positions.json")
+        directories.scrollPositionsFile
     }
 
     func load() {
@@ -35,6 +40,12 @@ final class ScrollPositionStore {
         debounceWrite()
     }
 
+    func flush() {
+        workItem?.cancel()
+        workItem = nil
+        queue.sync { writeToDisk() }
+    }
+
     private func key(bookID: UUID, path: String) -> String {
         "\(bookID.uuidString)/\(path)"
     }
@@ -54,6 +65,7 @@ final class ScrollPositionStore {
         dict = positions
         lock.unlock()
         guard let data = try? JSONEncoder().encode(dict) else { return }
+        try? directories.ensure()
         try? data.write(to: storeURL, options: [.atomic])
     }
 }

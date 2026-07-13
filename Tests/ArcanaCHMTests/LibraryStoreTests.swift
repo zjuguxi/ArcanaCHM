@@ -5,31 +5,38 @@ import XCTest
 final class LibraryStoreTests: XCTestCase {
 
     private var store: LibraryStore!
+    private var directories: AppDirectories!
+    private var testRoot: URL!
 
     override func setUp() {
         super.setUp()
-        store = LibraryStore()
-        removeTestData()
-        try? AppPaths.ensure()
+        testRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ArcanaCHMTests-\(UUID().uuidString)", isDirectory: true)
+        directories = AppDirectories(appSupport: testRoot)
+        precondition(testRoot.path.hasPrefix(FileManager.default.temporaryDirectory.path))
+        try? directories.ensure()
+        store = LibraryStore(directories: directories)
+        addTeardownBlock { [weak self] in
+            await self?.store?.flush()
+        }
     }
 
     override func tearDown() {
         store = nil
-        removeTestData()
+        if let testRoot, testRoot.path.contains("ArcanaCHMTests-") {
+            try? FileManager.default.removeItem(at: testRoot)
+        }
+        directories = nil
+        testRoot = nil
         super.tearDown()
     }
 
-    private func removeTestData() {
-        try? FileManager.default.removeItem(at: AppPaths.libraryFile)
-        try? FileManager.default.removeItem(at: AppPaths.backupFile)
-    }
-
     private func writeLibrary(_ data: Data) throws {
-        try data.write(to: AppPaths.libraryFile, options: [.atomic])
+        try data.write(to: directories.libraryFile, options: [.atomic])
     }
 
     private func makeBook(title: String) -> Book {
-        let path = AppPaths.booksDirectory.appendingPathComponent("test-\(UUID().uuidString)")
+        let path = directories.booksDirectory.appendingPathComponent("test-\(UUID().uuidString)")
         return Book.empty(title: title, rootURL: path)
     }
 
@@ -64,14 +71,26 @@ final class LibraryStoreTests: XCTestCase {
         XCTAssertEqual(store.books[0].title, "Legacy")
     }
 
+    func testLoad_futureSchemaIsRejectedWithoutRollback() async throws {
+        let future = LibraryFile(schemaVersion: 999, books: [makeBook(title: "Future")])
+        try writeLibrary(try JSONEncoder.reader.encode(future))
+        let older = LibraryFile(schemaVersion: 1, books: [makeBook(title: "Older Backup")])
+        try JSONEncoder.reader.encode(older).write(to: directories.backupFile, options: [.atomic])
+
+        await store.load()
+
+        XCTAssertTrue(store.books.isEmpty)
+        XCTAssertTrue(store.errorMessage?.contains("999") == true)
+    }
+
     // MARK: - Save
 
     func testSave_andLoadRoundtrip() async throws {
         let book = makeBook(title: "Roundtrip")
         store.books = [book]
-        store.save()
+        await store.flush()
 
-        let newStore = LibraryStore()
+        let newStore = LibraryStore(directories: directories)
         await newStore.load()
         XCTAssertEqual(newStore.books.count, 1)
         XCTAssertEqual(newStore.books[0].title, "Roundtrip")
@@ -80,15 +99,15 @@ final class LibraryStoreTests: XCTestCase {
     func testSave_createsBackup() async throws {
         let book1 = makeBook(title: "First")
         store.books = [book1]
-        store.save() // writes library.json (no prior file → no backup)
-        store.save() // copies library.json → backup, then overwrites with same
-        XCTAssertTrue(FileManager.default.fileExists(atPath: AppPaths.backupFile.path))
+        await store.flush() // writes library.json (no prior file → no backup)
+        await store.flush() // copies library.json → backup, then overwrites with same
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directories.backupFile.path))
 
         let book2 = makeBook(title: "Second")
         store.books = [book2]
-        store.save()
+        await store.flush()
         // Backup should now contain "First"
-        let backupData = try Data(contentsOf: AppPaths.backupFile)
+        let backupData = try Data(contentsOf: directories.backupFile)
         let lib = try JSONDecoder.reader.decode(LibraryFile.self, from: backupData)
         XCTAssertEqual(lib.books[0].title, "First")
     }
@@ -98,22 +117,26 @@ final class LibraryStoreTests: XCTestCase {
     func testLoad_corruptedFileRestoresFromBackup() async throws {
         let book = makeBook(title: "Safe")
         store.books = [book]
-        store.save() // writes [book] to library.json
-        store.save() // copies library.json → backup, then overwrites with same data
+        await store.flush() // writes [book] to library.json
+        await store.flush() // copies library.json → backup, then overwrites with same data
 
         // Corrupt the main file
-        try "garbage".write(to: AppPaths.libraryFile, atomically: true, encoding: .utf8)
+        try "garbage".write(to: directories.libraryFile, atomically: true, encoding: .utf8)
 
-        let restored = LibraryStore()
+        let restored = LibraryStore(directories: directories)
         await restored.load()
         let loadedBook = try XCTUnwrap(restored.books.first, "err=\(restored.errorMessage ?? "nil")")
         XCTAssertEqual(loadedBook.title, "Safe")
         XCTAssertNotNil(restored.errorMessage)
+
+        let preservedBackup = try Data(contentsOf: directories.backupFile)
+        let preservedLibrary = try JSONDecoder.reader.decode(LibraryFile.self, from: preservedBackup)
+        XCTAssertEqual(preservedLibrary.books.first?.title, "Safe")
     }
 
     func testLoad_corruptedNoBackup() async throws {
-        try "garbage".write(to: AppPaths.libraryFile, atomically: true, encoding: .utf8)
-        let store = LibraryStore()
+        try "garbage".write(to: directories.libraryFile, atomically: true, encoding: .utf8)
+        let store = LibraryStore(directories: directories)
         await store.load()
         XCTAssertTrue(store.books.isEmpty)
         XCTAssertNotNil(store.errorMessage)

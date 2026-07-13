@@ -3,9 +3,7 @@ import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
 
-private let currentSchemaVersion = 1
-
-struct LibraryFile: Codable {
+struct LibraryFile: Codable, Sendable {
     var schemaVersion: Int
     var books: [Book]
 }
@@ -17,7 +15,18 @@ final class LibraryStore: ObservableObject {
     @Published var isImporting = false
     @Published var errorMessage: String?
 
-    let scrollPositions = ScrollPositionStore()
+    let scrollPositions: ScrollPositionStore
+    private let directories: AppDirectories
+    private let fileManager: FileManager
+    private let repository: LibraryRepository
+    private var persistenceTask: Task<Void, Never>?
+
+    init(directories: AppDirectories = .production, fileManager: FileManager = .default) {
+        self.directories = directories
+        self.fileManager = fileManager
+        scrollPositions = ScrollPositionStore(directories: directories)
+        repository = LibraryRepository(directories: directories)
+    }
 
     var selectedBook: Book? {
         guard let selectedBookID else { return books.first }
@@ -27,40 +36,21 @@ final class LibraryStore: ObservableObject {
     func load() async {
         scrollPositions.load()
         do {
-            try AppPaths.ensure()
-            guard FileManager.default.fileExists(atPath: AppPaths.libraryFile.path) else {
-                return
-            }
-            let data = try Data(contentsOf: AppPaths.libraryFile)
-            if let libraryFile = try? JSONDecoder.reader.decode(LibraryFile.self, from: data) {
-                books = libraryFile.books
-            } else {
-                books = try JSONDecoder.reader.decode([Book].self, from: data)
-            }
-            books = books.filter { SecurityPolicy.isInsideAppBooks($0.rootURL) }
+            guard let result = try await repository.load() else { return }
+            books = result.library.books
+            books = books.filter { SecurityPolicy.isInsideBooks($0.rootURL, directories: directories) }
             selectedBookID = books.first?.id
+            if result.restoredFromBackup {
+                errorMessage = "library_corrupted_restored".loc
+            }
             await refreshLibraryMetadata()
         } catch {
-            try? loadFromBackup()
+            if case LibraryRepositoryError.noUsableBackup = error {
+                errorMessage = "library_corrupted_no_backup".loc
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
-    }
-
-    private func loadFromBackup() throws {
-        guard FileManager.default.fileExists(atPath: AppPaths.backupFile.path) else {
-            errorMessage = "library_corrupted_no_backup".loc
-            return
-        }
-        let backupData = try Data(contentsOf: AppPaths.backupFile)
-        if let libraryFile = try? JSONDecoder.reader.decode(LibraryFile.self, from: backupData) {
-            books = libraryFile.books
-        } else {
-            books = try JSONDecoder.reader.decode([Book].self, from: backupData)
-        }
-        books = books.filter { SecurityPolicy.isInsideAppBooks($0.rootURL) }
-        selectedBookID = books.first?.id
-        save()
-        errorMessage = "library_corrupted_restored".loc
-        Task { await refreshLibraryMetadata() }
     }
 
     private var saveDebounceTask: Task<Void, Never>?
@@ -68,7 +58,7 @@ final class LibraryStore: ObservableObject {
     func save() {
         saveDebounceTask?.cancel()
         saveDebounceTask = nil
-        saveImmediately(backup: true)
+        enqueueSave(rotateBackup: true)
     }
 
     func saveDebounced() {
@@ -76,24 +66,27 @@ final class LibraryStore: ObservableObject {
         saveDebounceTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 500_000_000)
             guard !Task.isCancelled else { return }
-            self?.saveImmediately(backup: false)
+            self?.enqueueSave(rotateBackup: false)
         }
     }
 
-    private func saveImmediately(backup: Bool = true) {
-        saveDebounceTask?.cancel()
-        saveDebounceTask = nil
-        do {
-            try AppPaths.ensure()
-            if backup && FileManager.default.fileExists(atPath: AppPaths.libraryFile.path) {
-                try? FileManager.default.removeItem(at: AppPaths.backupFile)
-                try FileManager.default.copyItem(at: AppPaths.libraryFile, to: AppPaths.backupFile)
+    func flush() async {
+        save()
+        await persistenceTask?.value
+        scrollPositions.flush()
+    }
+
+    private func enqueueSave(rotateBackup: Bool) {
+        let snapshot = LibraryFile(schemaVersion: LibraryRepository.currentSchemaVersion, books: books)
+        let previousTask = persistenceTask
+        let repository = repository
+        persistenceTask = Task { [weak self] in
+            await previousTask?.value
+            do {
+                try await repository.save(snapshot, rotateBackup: rotateBackup)
+            } catch {
+                self?.errorMessage = error.localizedDescription
             }
-            let libraryFile = LibraryFile(schemaVersion: currentSchemaVersion, books: books)
-            let data = try JSONEncoder.reader.encode(libraryFile)
-            try data.write(to: AppPaths.libraryFile, options: [.atomic])
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
 
@@ -117,7 +110,7 @@ final class LibraryStore: ObservableObject {
                     book.homePath = parser.homePath(from: toc) ?? book.homePath
                 }
             }
-            if book.contentFingerprint == nil {
+            if book.contentFingerprint?.hasPrefix("sha256-v2:") != true {
                 book.contentFingerprint = ContentFingerprint.hashDirectory(book.rootURL)
             }
             results.append(book)
@@ -157,10 +150,13 @@ final class LibraryStore: ObservableObject {
 
     func importCHM(_ url: URL) {
         isImporting = true
+        let directories = directories
         Task {
             do {
                 let book = try await Task.detached(priority: .userInitiated) {
-                    try CHMImporter().importCHM(from: url)
+                    let accessed = url.startAccessingSecurityScopedResource()
+                    defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+                    return try CHMImporter(directories: directories).importCHM(from: url)
                 }.value
                 finishImport(book)
                 populateAfterImport(book.id)
@@ -172,10 +168,13 @@ final class LibraryStore: ObservableObject {
 
     func importFolder(_ url: URL) {
         isImporting = true
+        let directories = directories
         Task {
             do {
                 let book = try await Task.detached(priority: .userInitiated) {
-                    try CHMImporter().importExtractedFolder(from: url)
+                    let accessed = url.startAccessingSecurityScopedResource()
+                    defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+                    return try CHMImporter(directories: directories).importExtractedFolder(from: url)
                 }.value
                 finishImport(book)
                 populateAfterImport(book.id)
@@ -202,8 +201,8 @@ final class LibraryStore: ObservableObject {
     func delete(_ book: Book) {
         guard let index = books.firstIndex(where: { $0.id == book.id }) else { return }
         let removed = books.remove(at: index)
-        if SecurityPolicy.isInsideAppBooks(removed.rootURL) {
-            try? FileManager.default.removeItem(at: removed.rootURL)
+        if SecurityPolicy.isInsideBooks(removed.rootURL, directories: directories) {
+            try? fileManager.removeItem(at: removed.rootURL)
         }
         if selectedBookID == removed.id {
             selectedBookID = books.first?.id
@@ -223,7 +222,7 @@ final class LibraryStore: ObservableObject {
                 at: 0
             )
         }
-        save()
+        saveDebounced()
     }
 
     func remember(path: String) {
@@ -266,9 +265,10 @@ final class LibraryStore: ObservableObject {
             }.value
             guard let idx = books.firstIndex(where: { $0.id == bookID }) else { return }
             if let fingerprint = book.contentFingerprint,
-               let dupIdx = books.firstIndex(where: { $0.id != bookID && $0.contentFingerprint == fingerprint }) {
+               let duplicate = books.first(where: { $0.id != bookID && $0.contentFingerprint == fingerprint }) {
+                let duplicateID = duplicate.id
                 books.remove(at: idx)
-                selectedBookID = books[dupIdx].id
+                selectedBookID = duplicateID
                 errorMessage = "library_duplicate".loc
                 removeImportedFiles(for: book)
             } else {
@@ -288,20 +288,30 @@ final class LibraryStore: ObservableObject {
         }
     }
 
-    private func duplicateBook(for book: Book) -> Book? {
-        guard let fingerprint = book.contentFingerprint else { return nil }
-        return books.first { $0.contentFingerprint == fingerprint }
-    }
-
     private func removeImportedFiles(for book: Book) {
-        if SecurityPolicy.isInsideAppBooks(book.rootURL) {
-            try? FileManager.default.removeItem(at: book.rootURL)
+        if SecurityPolicy.isInsideBooks(book.rootURL, directories: directories) {
+            try? fileManager.removeItem(at: book.rootURL)
         }
     }
 
     private func fail(_ error: Error) {
         isImporting = false
-        errorMessage = error.localizedDescription
+        guard let importError = error as? CHMImportError else {
+            errorMessage = error.localizedDescription
+            return
+        }
+        switch importError {
+        case .extractorMissing:
+            errorMessage = "error_no_extractor".loc
+        case .extractionFailed(let message):
+            errorMessage = "error_extraction_failed".loc(message)
+        case .noReadableContent:
+            errorMessage = "error_no_content".loc
+        case .unsafeArchiveContent(let message), .resourceLimitExceeded(let message):
+            errorMessage = "error_unsafe_content".loc(message)
+        case .extractionTimedOut:
+            errorMessage = "error_extraction_failed".loc("extraction exceeded the time limit")
+        }
     }
 
     private func displayTitle(for path: String, in book: Book) -> String {

@@ -90,7 +90,11 @@ enum SecurityPolicy {
         isDescendant(path: url.standardizedFileURL.resolvingSymlinksInPath().path, rootPath: resolvedRootPath)
     }
 
+    static func isInsideBooks(_ url: URL, directories: AppDirectories) -> Bool {
+        isDescendant(url, of: directories.booksDirectory)
+    }
+
     static func isInsideAppBooks(_ url: URL) -> Bool {
-        isDescendant(url, of: AppPaths.booksDirectory)
+        isInsideBooks(url, directories: .production)
     }
 }

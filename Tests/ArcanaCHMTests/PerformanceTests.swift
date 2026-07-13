@@ -70,7 +70,16 @@ final class PerformanceTests: XCTestCase {
 
     @MainActor
     func testToggleBookmarkLargeTOC() {
-        let store = LibraryStore()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ArcanaCHMPerformanceTests-\(UUID().uuidString)", isDirectory: true)
+        let directories = AppDirectories(appSupport: root)
+        try? directories.ensure()
+        defer {
+            if root.path.contains("ArcanaCHMPerformanceTests-") {
+                try? FileManager.default.removeItem(at: root)
+            }
+        }
+        let store = LibraryStore(directories: directories)
         var book = Book.empty(title: "Big", rootURL: URL(fileURLWithPath: "/tmp/big"))
         book.toc = (0..<5000).map { TOCItem(title: "Item \($0)", path: "p\($0).html") }
         book.bookmarks = [Bookmark(id: UUID(), title: "existing", path: "p0.html", scrollY: 0, createdAt: Date())]

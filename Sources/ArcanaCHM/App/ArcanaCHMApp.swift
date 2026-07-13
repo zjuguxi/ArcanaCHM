@@ -4,6 +4,7 @@ import SwiftUI
 struct ArcanaCHMApp: App {
     @StateObject private var library = LibraryStore()
     @StateObject private var reader = ReaderStore()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -14,6 +15,11 @@ struct ArcanaCHMApp: App {
                 .frame(minWidth: 1180, minHeight: 760)
                 .task {
                     await library.load()
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase != .active {
+                        Task { await library.flush() }
+                    }
                 }
         }
         .windowStyle(.titleBar)
