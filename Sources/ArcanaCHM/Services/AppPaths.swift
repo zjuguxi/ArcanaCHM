@@ -7,6 +7,7 @@ struct AppDirectories: Sendable {
     let backupFile: URL
     let secondaryBackupFile: URL
     let scrollPositionsFile: URL
+    let recoverySnapshotsDirectory: URL
     private let legacyAppSupport: URL?
 
     init(appSupport: URL, legacyAppSupport: URL? = nil) {
@@ -17,6 +18,7 @@ struct AppDirectories: Sendable {
         backupFile = root.appendingPathComponent("library.json.backup")
         secondaryBackupFile = root.appendingPathComponent("library.json.backup.2")
         scrollPositionsFile = root.appendingPathComponent("scroll_positions.json")
+        recoverySnapshotsDirectory = root.appendingPathComponent("RecoverySnapshots", isDirectory: true)
         self.legacyAppSupport = legacyAppSupport?.standardizedFileURL
     }
 

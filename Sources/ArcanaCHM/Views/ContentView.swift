@@ -78,6 +78,19 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .openFolderRequested)) { _ in
             library.importFolderWithPanel()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .rebuildLibraryRequested)) { _ in
+            Task { await library.prepareLibraryRebuild() }
+        }
+        .sheet(item: Binding(
+            get: { library.rebuildPreview },
+            set: { if $0 == nil { library.cancelLibraryRebuild() } }
+        )) { preview in
+            LibraryRebuildPreviewView(
+                preview: preview,
+                onCancel: { library.cancelLibraryRebuild() },
+                onConfirm: { Task { await library.applyLibraryRebuild(preview) } }
+            )
+        }
         .alert("arcana_chm".loc, isPresented: Binding(
             get: { library.errorMessage != nil },
             set: { if !$0 { library.errorMessage = nil } }
@@ -87,10 +100,10 @@ struct ContentView: View {
             Text(library.errorMessage ?? "")
         }
         .overlay {
-            if library.isImporting {
+            if library.isImporting || library.isRebuildingLibrary {
                 ZStack {
                     Color.black.opacity(0.18)
-                    ProgressView("reader_importing".loc)
+                    ProgressView(library.isRebuildingLibrary ? "library_rebuild_scanning".loc : "reader_importing".loc)
                         .padding(24)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
                 }

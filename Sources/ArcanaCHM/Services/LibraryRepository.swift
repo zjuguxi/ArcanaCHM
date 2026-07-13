@@ -76,6 +76,45 @@ actor LibraryRepository {
         }
     }
 
+    func replaceWithRebuild(_ library: LibraryFile) throws -> URL? {
+        let snapshot = try createRecoverySnapshot()
+        try save(library, rotateBackup: false)
+        return snapshot
+    }
+
+    private func createRecoverySnapshot() throws -> URL? {
+        try directories.ensure(fileManager: fileManager)
+        let sources = [directories.libraryFile, directories.backupFile, directories.secondaryBackupFile]
+            .filter { fileManager.fileExists(atPath: $0.path) }
+        guard !sources.isEmpty else { return nil }
+
+        try fileManager.createDirectory(
+            at: directories.recoverySnapshotsDirectory,
+            withIntermediateDirectories: true
+        )
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let timestamp = formatter.string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        let destination = directories.recoverySnapshotsDirectory
+            .appendingPathComponent("library-rebuild-\(timestamp)-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
+        do {
+            for source in sources {
+                let snapshotFile = destination.appendingPathComponent(source.lastPathComponent)
+                try fileManager.copyItem(
+                    at: source,
+                    to: snapshotFile
+                )
+                try fileManager.setAttributes([.posixPermissions: 0o400], ofItemAtPath: snapshotFile.path)
+            }
+            try fileManager.setAttributes([.posixPermissions: 0o500], ofItemAtPath: destination.path)
+            return destination
+        } catch {
+            try? fileManager.removeItem(at: destination)
+            throw error
+        }
+    }
+
     private func validatedData(at url: URL) -> Data? {
         guard let data = try? Data(contentsOf: url),
               (try? Self.decode(data)) != nil else { return nil }

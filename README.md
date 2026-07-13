@@ -17,8 +17,9 @@ A local-first macOS CHM reader. Native SwiftUI, offline by design.
 - Bilingual UI: English / 中文 (system language by default, manual switch in toolbar).
 - Light & dark reading themes, font scaling, focus mode.
 - Automatic backup of `library.json` — corrupt files are restored from backup.
+- Preview and rebuild the library from managed book folders, with read-only metadata snapshots before replacement.
 - Path sandboxing — no access outside the app's own data directory.
-- 176 unit and performance tests covering security policy, TOC parsing, isolated library persistence, bounded CHM import, encoding, and models.
+- 180 unit and performance tests covering security policy, TOC parsing, isolated library persistence, recovery snapshots, bounded CHM import, encoding, and models.
 
 ## Requirements
 
@@ -28,8 +29,8 @@ A local-first macOS CHM reader. Native SwiftUI, offline by design.
 
 ```bash
 swift build                       # build executable
-Scripts/package_app.sh 1.3.5      # create an ad-hoc signed local app
-Scripts/package_dmg.sh 1.3.5      # create distributable DMG
+Scripts/package_app.sh 1.3.6      # create an ad-hoc signed local app
+Scripts/package_dmg.sh 1.3.6      # create distributable DMG
 ```
 
 Local packages are ad-hoc signed. Tagged releases require Developer ID signing, Hardened Runtime, notarization, and stapling in GitHub Actions. The bundled 7-Zip archive and binary are verified against pinned SHA-256 values.
@@ -40,6 +41,7 @@ Imported archives are subject to file-count, size, depth, disk-space, and time l
 
 - `⌘O`: import a CHM file.
 - `⇧⌘O`: import an extracted folder.
+- App menu → Rebuild Library from Books: preview and recover library metadata.
 - Directory tab: document navigation.
 - Search tab: full-text local search.
 - Favorites tab: bookmarks.

@@ -73,6 +73,23 @@
 "library_duplicate" = "这个 CHM 文档已经在书库中，已为你打开现有副本。";
 "library_corrupted_no_backup" = "书库文件损坏，且无自动备份。请重新导入文档。";
 "library_corrupted_restored" = "书库文件已损坏，已从自动备份恢复。部分数据可能丢失。";
+"library_rebuild_menu" = "从 Books 重建书库…";
+"library_rebuild_title" = "重建书库";
+"library_rebuild_explanation" = "ArcanaCHM 已扫描托管的 Books 目录。请先检查可恢复文档，再替换书库元数据。";
+"library_rebuild_scanning" = "正在扫描托管书籍…";
+"library_rebuild_scanned" = "已扫描目录";
+"library_rebuild_preserved" = "保留现有条目";
+"library_rebuild_recovered" = "恢复条目";
+"library_rebuild_skipped" = "跳过条目";
+"library_rebuild_books" = "可恢复书籍";
+"library_rebuild_warnings" = "已跳过条目";
+"library_rebuild_snapshot_note" = "重建前，当前书库文件和两代备份会原样复制到 RecoverySnapshots。";
+"library_rebuild_cancel" = "取消";
+"library_rebuild_confirm" = "创建快照并重建";
+"library_rebuild_warning_unsafe" = "不安全或不支持的目录";
+"library_rebuild_warning_no_content" = "没有可读的 HTML 内容";
+"library_rebuild_warning_duplicate" = "文档内容重复";
+"library_rebuild_completed" = "书库重建成功，共恢复 %d 本书。原元数据已保存在 RecoverySnapshots。";
 
 /* Errors */
 "error_no_extractor" = "无法找到 CHM 解压器。请尝试重新安装 App，或通过 `brew install sevenzip` 手动安装。";
