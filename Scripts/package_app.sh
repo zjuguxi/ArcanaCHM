@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="ArcanaCHM"
-VERSION="${1:-${ARCANA_VERSION:-1.3.4}}"
+VERSION="${1:-${ARCANA_VERSION:-1.3.5}}"
 BUILD_NUMBER="${ARCANA_BUILD_NUMBER:-1}"
 BUILD_DIR="$ROOT_DIR/.build/release"
 DIST_DIR="$ROOT_DIR/dist"
