@@ -1,4 +1,4 @@
-import SwiftUI
+@preconcurrency import SwiftUI
 
 struct SearchResultsView: View {
     @EnvironmentObject private var reader: ReaderStore

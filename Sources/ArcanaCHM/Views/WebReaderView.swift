@@ -35,7 +35,7 @@ struct WebReaderView: NSViewRepresentable {
         let csp = """
         var meta = document.createElement('meta');
         meta.httpEquiv = 'Content-Security-Policy';
-        meta.content = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data: file:; script-src 'none'";
+        meta.content = "default-src 'none'; img-src 'self' data: file:; style-src 'self' file: 'unsafe-inline'; font-src 'self' data: file:; media-src 'self' file:; script-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
         document.head.insertBefore(meta, document.head.firstChild);
         """
         userContentController.addUserScript(WKUserScript(source: csp, injectionTime: .atDocumentStart, forMainFrameOnly: true))
@@ -49,9 +49,13 @@ struct WebReaderView: NSViewRepresentable {
         webView.allowsBackForwardNavigationGestures = true
         webView.setValue(false, forKey: "drawsBackground")
         context.coordinator.webView = webView
-        context.coordinator.installContentBlocker {
-            context.coordinator.isContentBlockerReady = true
-            load(webView)
+        context.coordinator.installContentBlocker { succeeded in
+            context.coordinator.isContentBlockerReady = succeeded
+            if succeeded {
+                load(webView)
+            } else {
+                webView.loadHTMLString(Self.securityConfigurationFailedHTML, baseURL: nil)
+            }
         }
         return webView
     }
@@ -242,19 +246,21 @@ struct WebReaderView: NSViewRepresentable {
         }
       });
       var nodes = [];
-      while (walker.nextNode()) nodes.push(walker.currentNode);
+      while (walker.nextNode() && nodes.length < 10000) nodes.push(walker.currentNode);
+      var highlightCount = 0;
       nodes.forEach(function(node) {
         var text = node.nodeValue || '';
         var lower = text.toLocaleLowerCase();
         var fragment = document.createDocumentFragment();
         var lastIndex = 0;
         var matchIndex = lower.indexOf(needle);
-        while (matchIndex !== -1) {
+        while (matchIndex !== -1 && highlightCount < 10000) {
           if (matchIndex > lastIndex) fragment.appendChild(document.createTextNode(text.slice(lastIndex, matchIndex)));
           var mark = document.createElement('mark');
           mark.className = 'arcana-search-hit';
           mark.textContent = text.slice(matchIndex, matchIndex + value.length);
           fragment.appendChild(mark);
+          highlightCount++;
           lastIndex = matchIndex + value.length;
           matchIndex = lower.indexOf(needle, lastIndex);
         }
@@ -285,7 +291,7 @@ struct WebReaderView: NSViewRepresentable {
         }
       });
       var nodes = [];
-      while (walker.nextNode()) nodes.push(walker.currentNode);
+      while (walker.nextNode() && nodes.length < 10000) nodes.push(walker.currentNode);
       var idx = 0;
       nodes.forEach(function(node) {
         var text = node.nodeValue || '';
@@ -293,7 +299,7 @@ struct WebReaderView: NSViewRepresentable {
         var frag = document.createDocumentFragment();
         var last = 0;
         var pos = lower.indexOf(needle);
-        while (pos !== -1) {
+        while (pos !== -1 && idx < 10000) {
           if (pos > last) frag.appendChild(document.createTextNode(text.slice(last, pos)));
           var mark = document.createElement('mark');
           mark.className = 'arcana-find-hit';
@@ -352,6 +358,13 @@ struct WebReaderView: NSViewRepresentable {
         """
     }
 
+    private static let securityConfigurationFailedHTML = """
+    <html><head><meta charset="utf-8"></head><body>
+    <p>Reader security configuration failed. Content was not loaded.</p>
+    </body></html>
+    """
+
+    @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var parent: WebReaderView
         var lastHighlightedQuery = ""
@@ -365,11 +378,11 @@ struct WebReaderView: NSViewRepresentable {
             self.parent = parent
         }
 
-        func installContentBlocker(completion: @escaping () -> Void) {
+        func installContentBlocker(completion: @escaping @MainActor (Bool) -> Void) {
             let rules = """
             [
               {
-                "trigger": { "url-filter": "^https?://.*" },
+                "trigger": { "url-filter": "^(https?|ftps?|wss?)://.*" },
                 "action": { "type": "block" }
               },
               {
@@ -393,8 +406,10 @@ struct WebReaderView: NSViewRepresentable {
                 DispatchQueue.main.async {
                     if let ruleList {
                         self?.webView?.configuration.userContentController.add(ruleList)
+                        completion(true)
+                    } else {
+                        completion(false)
                     }
-                    completion()
                 }
             }
         }
@@ -415,7 +430,7 @@ struct WebReaderView: NSViewRepresentable {
             _ webView: WKWebView,
             decidePolicyFor navigationAction: WKNavigationAction,
             preferences: WKWebpagePreferences,
-            decisionHandler: @escaping (WKNavigationActionPolicy, WKWebpagePreferences) -> Void
+            decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy, WKWebpagePreferences) -> Void
         ) {
             preferences.allowsContentJavaScript = false
 
@@ -461,7 +476,7 @@ struct WebReaderView: NSViewRepresentable {
             if type == "scroll", let y = body["y"] as? Double, y >= 0, y.isFinite {
                 parent.onScroll(parent.path, y)
             } else if type == "title", let title = body["title"] as? String {
-                parent.onTitle(title)
+                parent.onTitle(String(title.prefix(1_024)))
             } else if type == "find",
                       let count = body["count"] as? Int,
                       let current = body["current"] as? Int,
