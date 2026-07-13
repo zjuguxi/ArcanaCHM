@@ -85,6 +85,7 @@ struct WebReaderView: NSViewRepresentable {
         }
     }
 
+    @MainActor
     private func load(_ webView: WKWebView) {
         webView.appearance = NSAppearance(named: .aqua)
         let url = fileURL()
@@ -110,6 +111,7 @@ struct WebReaderView: NSViewRepresentable {
         searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    @MainActor
     fileprivate func injectStyle(into webView: WKWebView, scrollToMatch: Bool, scrollY: Double? = nil) {
         let css = """
         :root {
@@ -347,6 +349,7 @@ struct WebReaderView: NSViewRepresentable {
     window.webkit.messageHandlers.reader.postMessage({ type: 'title', title: document.title || '' });
     """
 
+    @MainActor
     private static func pageNotFoundHTML(title: String) -> String {
         """
         <html><head><meta charset="utf-8"><style>
