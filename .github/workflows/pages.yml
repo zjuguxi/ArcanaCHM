@@ -3,11 +3,6 @@ name: Deploy Docs to Pages
 on:
   push:
     branches: master
-    paths:
-      - 'docs/**'
-      - '.github/workflows/pages.yml'
-  release:
-    types: [published]
   workflow_dispatch:
 
 permissions:
