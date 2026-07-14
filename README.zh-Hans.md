@@ -29,11 +29,11 @@
 
 ```bash
 swift build                       # 编译可执行文件
-Scripts/package_app.sh 1.3.7      # 生成本地 ad-hoc 签名应用
-Scripts/package_dmg.sh 1.3.7      # 生成可分发的 DMG
+Scripts/package_app.sh 1.3.8      # 生成本地 ad-hoc 签名应用
+Scripts/package_dmg.sh 1.3.8      # 生成可分发的 DMG
 ```
 
-本地包使用 ad-hoc 签名。Git 标签发布必须在 GitHub Actions 中完成 Developer ID 签名、Hardened Runtime、公证和 stapling。内置 7-Zip 的归档与二进制都会校验固定 SHA-256。
+本地包和 Git 标签发布均使用 ad-hoc 签名，不经过 Apple 公证。首次启动时请右键点击 ArcanaCHM 并选择**打开**；如果 macOS 仍然阻止启动，请前往**系统设置 → 隐私与安全性**允许打开。发布的 DMG 附带 SHA-256 校验文件和 GitHub 构建来源证明。内置 7-Zip 的归档与二进制都会校验固定 SHA-256。
 
 导入归档会在解包前检查路径冲突、文件数量和声明大小，并在解包过程中继续执行大小、目录深度、磁盘空间、取消和超时限制。应用数据路径采用依赖注入，测试只使用带唯一名称的临时目录，不会访问生产书库。
 

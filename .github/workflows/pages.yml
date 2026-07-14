@@ -5,7 +5,7 @@ on:
     branches: master
   workflow_run:
     workflows:
-      - Build, Sign, Notarize, and Release DMG
+      - Build and Release Ad-Hoc DMG
     types:
       - completed
   workflow_dispatch:

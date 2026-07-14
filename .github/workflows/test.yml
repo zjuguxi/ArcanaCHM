@@ -21,7 +21,7 @@ jobs:
         run: |
           xcodebuild -version
           swift --version
-          test "$(tr -d '[:space:]' < VERSION)" = "1.3.7"
+          test "$(tr -d '[:space:]' < VERSION)" = "1.3.8"
       - name: Strict concurrency build
         run: swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Unit and performance tests
