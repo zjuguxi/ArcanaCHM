@@ -3,6 +3,11 @@ name: Deploy Docs to Pages
 on:
   push:
     branches: master
+  workflow_run:
+    workflows:
+      - Build, Sign, Notarize, and Release DMG
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
@@ -16,6 +21,9 @@ concurrency:
 
 jobs:
   deploy:
+    # A workflow_run is associated with the default branch, so it also satisfies
+    # the github-pages environment's master-only deployment policy.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -27,14 +35,15 @@ jobs:
 
       - name: Resolve latest version
         id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$TAG" ]; then
-            echo "No git tag found; aborting." >&2
-            exit 1
-          fi
+          RELEASE=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest")
+          TAG=$(jq -er '.tag_name' <<< "$RELEASE")
           VERSION="${TAG#v}"
-          DMG_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/ArcanaCHM-${VERSION}.dmg"
+          DMG_NAME="ArcanaCHM-${VERSION}.dmg"
+          DMG_URL=$(jq -er --arg name "$DMG_NAME" \
+            '.assets[] | select(.name == $name) | .browser_download_url' <<< "$RELEASE")
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "dmg_url=${DMG_URL}" >> "$GITHUB_OUTPUT"
           echo "Resolved: ${VERSION} -> ${DMG_URL}"
