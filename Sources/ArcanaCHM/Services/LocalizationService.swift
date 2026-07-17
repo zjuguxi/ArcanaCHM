@@ -37,20 +37,31 @@ final class LocalizationService: ObservableObject {
     }
 
     private var localizationBundle: Bundle {
-        let code = currentLanguage.identifier ?? preferredLanguageCode
-        if Bundle.main.bundlePath.hasSuffix(".app"),
-           Bundle.main.path(forResource: "en", ofType: "lproj") != nil {
-            if let path = Bundle.main.path(forResource: code, ofType: "lproj"),
+        Self.resolveLocalizationBundle(
+            mainBundle: Bundle.main,
+            moduleBundle: Bundle.module,
+            languageCode: currentLanguage.identifier ?? preferredLanguageCode
+        )
+    }
+
+    static func resolveLocalizationBundle(
+        mainBundle: Bundle,
+        moduleBundle: Bundle,
+        languageCode: String
+    ) -> Bundle {
+        if mainBundle.bundlePath.hasSuffix(".app"),
+           mainBundle.path(forResource: "en", ofType: "lproj") != nil {
+            if let path = mainBundle.path(forResource: languageCode, ofType: "lproj"),
                let bundle = Bundle(path: path) {
                 return bundle
             }
-            return Bundle.main
+            return mainBundle
         }
-        guard let path = Bundle.module.path(forResource: code, ofType: "lproj"),
-              let bundle = Bundle(path: path) else {
-            return Bundle.module
+        if let path = moduleBundle.path(forResource: languageCode, ofType: "lproj"),
+           let bundle = Bundle(path: path) {
+            return bundle
         }
-        return bundle
+        return moduleBundle
     }
 
     private var preferredLanguageCode: String {
