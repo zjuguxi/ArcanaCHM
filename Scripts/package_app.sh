@@ -27,7 +27,10 @@ echo "Bundling 7zz extractor..."
 cp "$ROOT_DIR/Resources/7zz" "$RESOURCES_DIR/7zz"
 
 echo "Bundling localized resources..."
-cp -R "$BUILD_DIR/${APP_NAME}_${APP_NAME}.bundle" "$RESOURCES_DIR/"
+for lproj in "$BUILD_DIR/${APP_NAME}_${APP_NAME}.bundle/"*.lproj; do
+    [ -e "$lproj" ] || continue
+    cp -R "$lproj" "$RESOURCES_DIR/"
+done
 
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
