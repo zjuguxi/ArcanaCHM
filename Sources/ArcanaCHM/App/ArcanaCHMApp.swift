@@ -3,14 +3,14 @@ import SwiftUI
 @main
 struct ArcanaCHMApp: App {
     @StateObject private var library = LibraryStore()
-    @StateObject private var reader = ReaderStore()
+    @StateObject private var readerPreferences = ReaderPreferencesStore()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(library)
-                .environmentObject(reader)
+                .environmentObject(readerPreferences)
                 .environmentObject(LocalizationService.shared)
                 .frame(minWidth: 1180, minHeight: 760)
                 .task {
@@ -41,6 +41,7 @@ struct ArcanaCHMApp: App {
                     NotificationCenter.default.post(name: .rebuildLibraryRequested, object: nil)
                 }
             }
+            ReaderWorkspaceCommandMenu()
         }
     }
 }

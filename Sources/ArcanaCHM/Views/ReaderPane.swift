@@ -3,10 +3,13 @@ import SwiftUI
 struct ReaderPane: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var reader: ReaderStore
+    @EnvironmentObject private var preferences: ReaderPreferencesStore
+    @EnvironmentObject private var workspace: ReaderWorkspaceStore
     @EnvironmentObject private var locale: LocalizationService
+    @ObservedObject var tab: ReaderTabSession
+    let isActive: Bool
     @StateObject private var navigationController = ReaderNavigationController()
 
-    @State private var currentTitle = ""
     @State private var hoveredToolbarTitle: String?
     @State private var showFindBar = false
     @State private var findQuery = ""
@@ -26,27 +29,29 @@ struct ReaderPane: View {
                 }
                 Divider()
 
-                if let book = library.selectedBook, let path = reader.currentPath ?? book.homePath {
+                if let book = library.book(id: tab.bookID), let path = reader.currentPath ?? book.homePath {
                     WebReaderView(
                         book: book,
                         navigationController: navigationController,
                         path: path,
                         scrollY: reader.scrollY,
-                        fontScale: reader.fontScale,
-                        spotlightMode: reader.spotlightMode,
+                        fontScale: preferences.fontScale,
+                        spotlightMode: preferences.spotlightMode,
                         searchQuery: reader.searchQuery,
                         navigationToken: reader.navigationToken,
                         onNavigationCommitted: { bookID, path in
-                            guard library.selectedBookID == bookID else { return }
+                            guard tab.bookID == bookID else { return }
                             reader.synchronizeCommittedNavigation(bookID: bookID, path: path)
                         },
                         onNavigationFinished: { bookID, path in
-                            guard library.selectedBookID == bookID else { return }
+                            guard tab.bookID == bookID else { return }
                             reader.synchronizeCommittedNavigation(bookID: bookID, path: path)
-                            library.remember(path: path)
+                            if workspace.activeTabID == tab.id {
+                                library.remember(bookID: bookID, path: path)
+                            }
                         },
                         onScroll: { bookID, path, scrollY in
-                            guard library.selectedBookID == bookID else { return }
+                            guard tab.bookID == bookID else { return }
                             reader.synchronizeScroll(bookID: bookID, path: path, scrollY: scrollY)
                             library.scrollPositions.save(
                                 bookID: bookID,
@@ -55,7 +60,7 @@ struct ReaderPane: View {
                             )
                         },
                         onTitle: { title in
-                            currentTitle = title.nilIfBlank() ?? book.title
+                            tab.pageTitle = title.nilIfBlank() ?? book.title
                         },
                         findQuery: findQuery,
                         findNavigationTrigger: findNavigationTrigger,
@@ -96,23 +101,24 @@ struct ReaderPane: View {
                 findCurrentMatch = 0
             }
         }
-        .onChange(of: library.selectedBookID) { _, _ in
+        .onChange(of: tab.bookID) { _, _ in
             navigationController.reset()
-            currentTitle = ""
+            tab.pageTitle = ""
         }
         .background {
             Group {
                 Button("") { showFindBar = true }
                     .keyboardShortcut("f", modifiers: .command)
                     .hidden()
+                    .disabled(!isActive)
                 Button("") { navigationController.goBack() }
                     .keyboardShortcut("[", modifiers: .command)
                     .hidden()
-                    .disabled(!navigationController.canGoBack)
+                    .disabled(!isActive || !navigationController.canGoBack)
                 Button("") { navigationController.goForward() }
                     .keyboardShortcut("]", modifiers: .command)
                     .hidden()
-                    .disabled(!navigationController.canGoForward)
+                    .disabled(!isActive || !navigationController.canGoForward)
             }
         }
     }
@@ -138,10 +144,10 @@ struct ReaderPane: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(currentTitle.isEmpty ? "reader_no_document".loc : currentTitle)
+                Text(tab.pageTitle.isEmpty ? "reader_no_document".loc : tab.pageTitle)
                     .font(.headline)
                     .lineLimit(1)
-                Text(library.selectedBook?.title ?? "reader_no_document".loc)
+                Text(library.book(id: tab.bookID)?.title ?? "reader_no_document".loc)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -154,20 +160,20 @@ struct ReaderPane: View {
             }
 
             ReaderToolbarButton(title: "reader_font_decrease".loc, systemImage: "textformat.size.smaller", hoveredTitle: $hoveredToolbarTitle) {
-                reader.fontScale = max(0.82, reader.fontScale - 0.08)
+                preferences.fontScale = max(0.82, preferences.fontScale - 0.08)
             }
 
             ReaderToolbarButton(title: "reader_font_increase".loc, systemImage: "textformat.size.larger", hoveredTitle: $hoveredToolbarTitle) {
-                reader.fontScale = min(1.42, reader.fontScale + 0.08)
+                preferences.fontScale = min(1.42, preferences.fontScale + 0.08)
             }
 
             ReaderToolbarButton(
                 title: "reader_focus_mode".loc,
-                systemImage: reader.spotlightMode ? "rectangle.expand.vertical" : "rectangle.compress.vertical",
-                isActive: reader.spotlightMode,
+                systemImage: preferences.spotlightMode ? "rectangle.expand.vertical" : "rectangle.compress.vertical",
+                isActive: preferences.spotlightMode,
                 hoveredTitle: $hoveredToolbarTitle
             ) {
-                reader.spotlightMode.toggle()
+                preferences.spotlightMode.toggle()
             }
 
             ReaderToolbarButton(
@@ -178,7 +184,9 @@ struct ReaderPane: View {
                 hoveredTitle: $hoveredToolbarTitle
             ) {
                 if let path = activeReadingPath {
-                    library.toggleBookmark(path: path, scrollY: reader.scrollY)
+                    if let bookID = tab.bookID {
+                        library.toggleBookmark(bookID: bookID, path: path, scrollY: reader.scrollY)
+                    }
                 }
             }
         }
@@ -242,12 +250,12 @@ struct ReaderPane: View {
     }
 
     private var activeReadingPath: String? {
-        reader.currentPath ?? library.selectedBook?.homePath
+        reader.currentPath ?? library.book(id: tab.bookID)?.homePath
     }
 
     private var isCurrentPageBookmarked: Bool {
         guard let path = activeReadingPath,
-              let book = library.selectedBook
+              let book = library.book(id: tab.bookID)
         else {
             return false
         }

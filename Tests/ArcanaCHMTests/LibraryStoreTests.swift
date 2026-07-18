@@ -276,6 +276,18 @@ final class LibraryStoreTests: XCTestCase {
         XCTAssertEqual(store.selectedBook?.bookmarks.count, 1)
     }
 
+    func testToggleBookmarkExplicitBookDoesNotUseGlobalSelection() {
+        let first = makeBook(title: "First")
+        let second = makeBook(title: "Second")
+        store.books = [first, second]
+        store.selectedBookID = first.id
+
+        store.toggleBookmark(bookID: second.id, path: "second.html", scrollY: 12)
+
+        XCTAssertTrue(store.books[0].bookmarks.isEmpty)
+        XCTAssertEqual(store.books[1].bookmarks.first?.path, "second.html")
+    }
+
     // MARK: - Remember
 
     func testRemember() {
@@ -293,5 +305,17 @@ final class LibraryStoreTests: XCTestCase {
         store.remember(path: "ch1.html")
         store.remember(path: "ch1.html")  // same path, should not update
         XCTAssertEqual(store.selectedBook?.lastReadPath, "ch1.html")
+    }
+
+    func testRememberExplicitBookDoesNotUseGlobalSelection() {
+        let first = makeBook(title: "First")
+        let second = makeBook(title: "Second")
+        store.books = [first, second]
+        store.selectedBookID = first.id
+
+        store.remember(bookID: second.id, path: "second.html")
+
+        XCTAssertNil(store.books[0].lastReadPath)
+        XCTAssertEqual(store.books[1].lastReadPath, "second.html")
     }
 }

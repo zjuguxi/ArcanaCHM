@@ -6,19 +6,10 @@ final class ReaderStore: ObservableObject {
     @Published private(set) var currentBookID: UUID?
     @Published var currentPath: String?
     @Published var scrollY: Double = 0
-    @Published var fontScale: Double = 1.0
-    @Published var spotlightMode = false
     @Published var searchQuery = ""
     @Published var navigationToken = UUID()
-    @Published var darkMode: Bool {
-        didSet {
-            UserDefaults.standard.set(darkMode, forKey: "ArcanaCHM.darkMode")
-        }
-    }
 
-    init() {
-        darkMode = UserDefaults.standard.bool(forKey: "ArcanaCHM.darkMode")
-    }
+    init() {}
 
     func beginSession(bookID: UUID, path: String?, scrollY: Double = 0) {
         currentBookID = bookID

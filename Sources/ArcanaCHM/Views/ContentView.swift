@@ -2,16 +2,11 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var library: LibraryStore
-    @EnvironmentObject private var reader: ReaderStore
+    @EnvironmentObject private var preferences: ReaderPreferencesStore
     @EnvironmentObject private var locale: LocalizationService
 
-    @State private var searchText = ""
-    @State private var lastCompletedSearch: (query: String, hits: [SearchHit])?
-    @State private var isSearching = false
-    @State private var selectedTab = "toc"
+    @StateObject private var workspace = ReaderWorkspaceStore()
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
-    @State private var searchTask: Task<Void, Never>?
-    @State private var searchGeneration = UUID()
     @AppStorage("ArcanaCHM.searchHistory") private var searchHistoryStorage = "[]"
 
     private var searchHistory: [String] {
@@ -30,47 +25,44 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            LibrarySidebar()
-                .navigationSplitViewColumnWidth(min: 220, ideal: 260)
-        } content: {
-            ReferenceSidebar(
-                searchText: $searchText,
-                lastCompletedSearch: lastCompletedSearch,
-                isSearching: $isSearching,
-                selectedTab: $selectedTab,
-                searchHistory: searchHistory,
-                runSearch: runSearch,
-                runHistoricalSearch: runHistoricalSearch,
-                deleteHistoryItem: deleteHistoryItem
-            )
-            .navigationSplitViewColumnWidth(min: 300, ideal: 360)
-        } detail: {
-            ReaderPane()
+        let activeTab = workspace.activeTab
+
+        VStack(spacing: 0) {
+            ReaderTabBar()
+            Divider()
+
+            NavigationSplitView(columnVisibility: $columnVisibility) {
+                LibrarySidebar()
+                    .navigationSplitViewColumnWidth(min: 220, ideal: 260)
+            } content: {
+                ReferenceSidebar(
+                    tab: activeTab,
+                    searchHistory: searchHistory,
+                    runSearch: { runSearch(for: activeTab) },
+                    runHistoricalSearch: { runHistoricalSearch($0, for: activeTab) },
+                    deleteHistoryItem: deleteHistoryItem
+                )
+                .environmentObject(activeTab.reader)
+                .navigationSplitViewColumnWidth(min: 300, ideal: 360)
+                .id(activeTab.id)
+            } detail: {
+                readerDetail
+            }
         }
+        .environmentObject(workspace)
+        .focusedSceneValue(
+            \.readerWorkspaceCommands,
+            ReaderWorkspaceCommandActions(
+                newTab: { workspace.newTab() },
+                closeActiveTabOrWindow: closeActiveTabOrWindow,
+                selectNextTab: { workspace.selectNextTab() },
+                selectPreviousTab: { workspace.selectPreviousTab() }
+            )
+        )
         .tint(.teal)
-        .preferredColorScheme(reader.darkMode ? .dark : .light)
+        .preferredColorScheme(preferences.darkMode ? .dark : .light)
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    reader.darkMode.toggle()
-                } label: {
-                    Label(reader.darkMode ? "reader_dark_mode".loc : "reader_light_mode".loc, systemImage: reader.darkMode ? "sun.max" : "moon")
-                }
-                .help(reader.darkMode ? "reader_switch_light".loc : "reader_switch_dark".loc)
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    Picker("language_title".loc, selection: $locale.currentLanguage) {
-                        ForEach(LocalizationService.Language.allCases, id: \.self) { lang in
-                            Text(locale.label(for: lang)).tag(lang)
-                        }
-                    }
-                    .pickerStyle(.inline)
-                } label: {
-                    Label("language_title".loc, systemImage: "globe")
-                }
-            }
+            ReaderGlobalToolbar()
         }
         .onReceive(NotificationCenter.default.publisher(for: .importCHMRequested)) { _ in
             library.importCHMWithPanel()
@@ -109,39 +101,55 @@ struct ContentView: View {
                 }
             }
         }
-        .onChange(of: library.selectedBookID) { _, _ in
-            cancelSearch()
-            lastCompletedSearch = nil
+        .onChange(of: library.books) { _, books in
+            workspace.reconcile(validBookIDs: Set(books.map(\.id)))
         }
         .onDisappear {
-            searchTask?.cancel()
+            for tab in workspace.tabs {
+                tab.cancelSearch()
+            }
         }
     }
 
-    private func runSearch() {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard query.count >= 2 else {
-            return
+    private var readerDetail: some View {
+        ZStack {
+            ForEach(workspace.tabs) { tab in
+                let isActive = tab.id == workspace.activeTabID
+                ReaderTabPaneHost(tab: tab, isActive: isActive)
+            }
         }
-        guard let book = library.selectedBook else { return }
-        isSearching = true
-        reader.searchQuery = query
+    }
+
+    private func runSearch(for tab: ReaderTabSession) {
+        let query = tab.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard query.count >= 2,
+              let bookID = tab.bookID,
+              let book = library.book(id: bookID)
+        else { return }
+
+        tab.isSearching = true
+        tab.reader.searchQuery = query
         rememberSearch(query)
-        searchTask?.cancel()
+        tab.searchTask?.cancel()
         let generation = UUID()
-        searchGeneration = generation
-        searchTask = Task {
+        tab.searchGeneration = generation
+        tab.searchTask = Task {
             let hits = await library.search(query, in: book)
-            guard !Task.isCancelled, searchGeneration == generation else { return }
-            lastCompletedSearch = (query, hits)
-            isSearching = false
-            selectedTab = "search"
+            guard !Task.isCancelled,
+                  workspace.tabs.contains(where: { $0.id == tab.id }),
+                  tab.bookID == bookID,
+                  tab.searchGeneration == generation,
+                  tab.searchText.trimmingCharacters(in: .whitespacesAndNewlines) == query
+            else { return }
+            tab.completedSearch = CompletedReaderSearch(query: query, hits: hits)
+            tab.isSearching = false
+            tab.selectedReferenceTab = "search"
         }
     }
 
-    private func runHistoricalSearch(_ query: String) {
-        searchText = query
-        runSearch()
+    private func runHistoricalSearch(_ query: String, for tab: ReaderTabSession) {
+        tab.searchText = query
+        runSearch(for: tab)
     }
 
     private func rememberSearch(_ query: String) {
@@ -154,10 +162,57 @@ struct ContentView: View {
         searchHistory = searchHistory.filter { $0 != query }
     }
 
-    private func cancelSearch() {
-        searchTask?.cancel()
-        searchTask = nil
-        searchGeneration = UUID()
-        isSearching = false
+    private func closeActiveTabOrWindow() {
+        if workspace.tabs.count > 1 {
+            workspace.closeTab(workspace.activeTabID)
+        } else {
+            NSApp.keyWindow?.performClose(nil)
+        }
+    }
+}
+
+private struct ReaderTabPaneHost: View {
+    @ObservedObject var tab: ReaderTabSession
+    let isActive: Bool
+
+    var body: some View {
+        ReaderPane(tab: tab, isActive: isActive)
+            .environmentObject(tab.reader)
+            .opacity(isActive ? 1 : 0)
+            .allowsHitTesting(isActive)
+            .accessibilityHidden(!isActive)
+            .zIndex(isActive ? 1 : 0)
+    }
+}
+
+private struct ReaderGlobalToolbar: ToolbarContent {
+    @EnvironmentObject private var preferences: ReaderPreferencesStore
+    @EnvironmentObject private var locale: LocalizationService
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                preferences.darkMode.toggle()
+            } label: {
+                Label(
+                    preferences.darkMode ? "reader_dark_mode".loc : "reader_light_mode".loc,
+                    systemImage: preferences.darkMode ? "sun.max" : "moon"
+                )
+            }
+            .help(preferences.darkMode ? "reader_switch_light".loc : "reader_switch_dark".loc)
+        }
+        ToolbarItem(placement: .primaryAction) {
+            Menu {
+                Picker("language_title".loc, selection: $locale.currentLanguage) {
+                    ForEach(LocalizationService.Language.allCases, id: \.self) { language in
+                        Text(locale.label(for: language))
+                            .tag(language)
+                    }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                Label("language_title".loc, systemImage: "globe")
+            }
+        }
     }
 }

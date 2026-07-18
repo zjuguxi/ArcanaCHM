@@ -37,6 +37,11 @@ final class LibraryStore: ObservableObject {
         return books.first { $0.id == selectedBookID }
     }
 
+    func book(id: Book.ID?) -> Book? {
+        guard let id else { return nil }
+        return books.first { $0.id == id }
+    }
+
     func load() async {
         scrollPositions.load()
         do {
@@ -215,8 +220,12 @@ final class LibraryStore: ObservableObject {
     }
 
     func toggleBookmark(path: String, scrollY: Double) {
-        guard let book = selectedBook,
-              let idx = books.firstIndex(where: { $0.id == book.id }) else { return }
+        guard let bookID = selectedBook?.id else { return }
+        toggleBookmark(bookID: bookID, path: path, scrollY: scrollY)
+    }
+
+    func toggleBookmark(bookID: Book.ID, path: String, scrollY: Double) {
+        guard let idx = books.firstIndex(where: { $0.id == bookID }) else { return }
         if let bmIdx = books[idx].bookmarks.firstIndex(where: { $0.path == path }) {
             books[idx].bookmarks.remove(at: bmIdx)
         } else {
@@ -230,7 +239,12 @@ final class LibraryStore: ObservableObject {
     }
 
     func remember(path: String) {
-        guard let idx = books.firstIndex(where: { $0.id == selectedBookID }),
+        guard let selectedBookID else { return }
+        remember(bookID: selectedBookID, path: path)
+    }
+
+    func remember(bookID: Book.ID, path: String) {
+        guard let idx = books.firstIndex(where: { $0.id == bookID }),
               books[idx].lastReadPath != path else { return }
         books[idx].lastReadPath = path
         saveDebounced()

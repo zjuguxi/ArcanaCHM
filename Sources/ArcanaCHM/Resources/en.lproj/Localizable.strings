@@ -10,6 +10,7 @@
 "sidebar_import_folder_menu" = "Open Extracted Folder...";
 "sidebar_no_documents" = "No Documents";
 "sidebar_open_document" = "Open document: %@";
+"sidebar_open_new_tab" = "Open in New Tab";
 "sidebar_pin" = "Pin";
 "sidebar_unpin" = "Unpin";
 "sidebar_delete" = "Delete";
@@ -48,6 +49,12 @@
 "reader_import_chm" = "Import CHM";
 "reader_back" = "Back (⌘[)";
 "reader_forward" = "Forward (⌘])";
+"reader_new_tab" = "New Tab (⌘T)";
+"reader_new_tab_title" = "New Tab";
+"reader_close_tab" = "Close Tab";
+"reader_close_tab_named" = "Close %@";
+"reader_next_tab" = "Show Next Tab";
+"reader_previous_tab" = "Show Previous Tab";
 "reader_font_decrease" = "Decrease Font Size";
 "reader_font_increase" = "Increase Font Size";
 "reader_focus_mode" = "Focus Mode";

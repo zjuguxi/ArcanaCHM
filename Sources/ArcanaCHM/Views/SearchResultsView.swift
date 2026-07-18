@@ -4,7 +4,7 @@ struct SearchResultsView: View {
     @EnvironmentObject private var reader: ReaderStore
     @EnvironmentObject private var locale: LocalizationService
     let searchText: String
-    let lastCompletedSearch: (query: String, hits: [SearchHit])?
+    let lastCompletedSearch: CompletedReaderSearch?
     let history: [String]
     var runHistoricalSearch: (String) -> Void
     var deleteHistoryItem: (String) -> Void

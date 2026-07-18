@@ -13,6 +13,7 @@ A local-first macOS CHM reader. Native SwiftUI, offline by design.
 - Import already-extracted folders.
 - Reading memory per document: last page + scroll position (500ms debounced).
 - Back/forward navigation through toolbar buttons, `⌘[` / `⌘]`, and trackpad gestures, with TOC, bookmark, and scroll state synchronization.
+- In-memory reading tabs with independent page, scroll, search, find-in-page, and back/forward history state.
 - Bookmarks, search history, full-text search.
 - Find in page (Cmd+F) with match navigation.
 - Bilingual UI: English / 中文 (system language by default, manual switch in toolbar).
@@ -20,7 +21,7 @@ A local-first macOS CHM reader. Native SwiftUI, offline by design.
 - Automatic backup of `library.json` — corrupt files are restored from backup.
 - Preview and rebuild the library from managed book folders, with read-only metadata snapshots before replacement.
 - Path sandboxing — no access outside the app's own data directory.
-- 208 unit and performance tests covering navigation state, security policy, TOC parsing, isolated library persistence, recovery snapshots, preflighted CHM import, encoding, and models.
+- 220 unit and performance tests covering tab workspaces, navigation state, security policy, TOC parsing, isolated library persistence, recovery snapshots, preflighted CHM import, encoding, and models.
 
 ## Requirements
 
@@ -30,8 +31,8 @@ A local-first macOS CHM reader. Native SwiftUI, offline by design.
 
 ```bash
 swift build                       # build executable
-Scripts/package_app.sh 1.4.0      # create an ad-hoc signed local app
-Scripts/package_dmg.sh 1.4.0      # create distributable DMG
+Scripts/package_app.sh 1.4.1      # create an ad-hoc signed local app
+Scripts/package_dmg.sh 1.4.1      # create distributable DMG
 ```
 
 Packages and tagged releases are ad-hoc signed and are not notarized by Apple. On first launch, right-click ArcanaCHM and choose **Open**; if macOS still blocks it, allow it in **System Settings → Privacy & Security**. Release DMGs include a SHA-256 checksum and GitHub build provenance. The bundled 7-Zip archive and binary are verified against pinned SHA-256 values.
@@ -43,6 +44,8 @@ Imported archives are inspected before extraction and monitored while extracting
 - `⌘O`: import a CHM file.
 - `⇧⌘O`: import an extracted folder.
 - `⌘[` / `⌘]`: back / forward.
+- `⌘T` / `⌘W`: new tab / close tab (closing the only tab closes the window).
+- `⇧⌘[` / `⇧⌘]`: previous / next tab.
 - App menu → Rebuild Library from Books: preview and recover library metadata.
 - Directory tab: document navigation.
 - Search tab: full-text local search.

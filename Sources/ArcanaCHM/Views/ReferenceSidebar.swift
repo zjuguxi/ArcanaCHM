@@ -4,29 +4,25 @@ struct ReferenceSidebar: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var reader: ReaderStore
     @EnvironmentObject private var locale: LocalizationService
+    @ObservedObject var tab: ReaderTabSession
 
-    @Binding var searchText: String
-    let lastCompletedSearch: (query: String, hits: [SearchHit])?
-    @Binding var isSearching: Bool
-    @Binding var selectedTab: String
     let searchHistory: [String]
     var runSearch: () -> Void
     var runHistoricalSearch: (String) -> Void
     var deleteHistoryItem: (String) -> Void
-    @State private var expandedTOCItems: Set<UUID> = []
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("search_placeholder".loc, text: $searchText)
+                TextField("search_placeholder".loc, text: $tab.searchText)
                     .textFieldStyle(.plain)
                     .onSubmit(runSearch)
                     .help("search_help_keywords".loc)
-                if !searchText.isEmpty {
+                if !tab.searchText.isEmpty {
                     Button {
-                        searchText = ""
+                        tab.searchText = ""
                         reader.searchQuery = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
@@ -35,28 +31,26 @@ struct ReferenceSidebar: View {
                     .foregroundStyle(.secondary)
                     .help("search_help_clear".loc)
                 }
-                Button {
-                    runSearch()
-                } label: {
+                Button(action: runSearch) {
                     Image(systemName: "magnifyingglass.circle.fill")
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.teal)
                 .help("search_help_search".loc)
-                .disabled(searchText.trimmingCharacters(in: .whitespacesAndNewlines).count < 2 || isSearching)
+                .disabled(tab.searchText.trimmingCharacters(in: .whitespacesAndNewlines).count < 2 || tab.isSearching)
                 ZStack {
                     ProgressView()
                         .controlSize(.small)
-                        .opacity(isSearching ? 1 : 0)
+                        .opacity(tab.isSearching ? 1 : 0)
                 }
                 .frame(width: 16, height: 16)
-                .accessibilityHidden(!isSearching)
+                .accessibilityHidden(!tab.isSearching)
             }
             .padding(10)
             .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
             .padding([.horizontal, .top], 12)
 
-            Picker("", selection: tabSelection) {
+            Picker("", selection: $tab.selectedReferenceTab) {
                 Label("tab_toc".loc, systemImage: "list.bullet").tag("toc")
                 Label("tab_search".loc, systemImage: "text.magnifyingglass").tag("search")
                 Label("tab_favorites".loc, systemImage: "bookmark").tag("favorites")
@@ -68,47 +62,35 @@ struct ReferenceSidebar: View {
             Divider()
 
             Group {
-                if let book = library.selectedBook {
-                    switch selectedTab {
+                if let book = library.book(id: tab.bookID) {
+                    switch tab.selectedReferenceTab {
                     case "search":
                         SearchResultsView(
-                            searchText: searchText,
-                            lastCompletedSearch: lastCompletedSearch,
+                            searchText: tab.searchText,
+                            lastCompletedSearch: tab.completedSearch,
                             history: searchHistory,
                             runHistoricalSearch: runHistoricalSearch,
                             deleteHistoryItem: deleteHistoryItem
                         )
-                        .transition(.opacity)
-                        .id("search")
                     case "favorites":
                         FavoritesPanel(book: book)
-                            .transition(.opacity)
-                            .id("favorites")
                     default:
-                        TOCView(items: book.toc, expandedItems: $expandedTOCItems)
-                            .transition(.opacity)
-                            .id("toc")
+                        TOCView(items: book.toc, expandedItems: $tab.expandedTOCItems)
                     }
                 } else {
-                    switch selectedTab {
+                    switch tab.selectedReferenceTab {
                     case "search":
                         SearchResultsView(
-                            searchText: searchText,
-                            lastCompletedSearch: lastCompletedSearch,
+                            searchText: tab.searchText,
+                            lastCompletedSearch: tab.completedSearch,
                             history: searchHistory,
                             runHistoricalSearch: runHistoricalSearch,
                             deleteHistoryItem: deleteHistoryItem
                         )
-                        .transition(.opacity)
-                        .id("search")
                     case "favorites":
                         emptyFavoritesView
-                            .transition(.opacity)
-                            .id("favorites")
                     default:
-                        TOCView(items: [], expandedItems: $expandedTOCItems)
-                            .transition(.opacity)
-                            .id("toc")
+                        TOCView(items: [], expandedItems: $tab.expandedTOCItems)
                     }
                 }
             }
@@ -129,13 +111,4 @@ struct ReferenceSidebar: View {
         }
         .listStyle(.inset)
     }
-
-    private var tabSelection: Binding<String> {
-        Binding {
-            selectedTab
-        } set: { newValue in
-            selectedTab = newValue
-        }
-    }
 }
-
