@@ -4,6 +4,7 @@ struct ReaderPane: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var reader: ReaderStore
     @EnvironmentObject private var locale: LocalizationService
+    @StateObject private var navigationController = ReaderNavigationController()
 
     @State private var currentTitle = ""
     @State private var hoveredToolbarTitle: String?
@@ -28,19 +29,30 @@ struct ReaderPane: View {
                 if let book = library.selectedBook, let path = reader.currentPath ?? book.homePath {
                     WebReaderView(
                         book: book,
+                        navigationController: navigationController,
                         path: path,
                         scrollY: reader.scrollY,
                         fontScale: reader.fontScale,
                         spotlightMode: reader.spotlightMode,
                         searchQuery: reader.searchQuery,
                         navigationToken: reader.navigationToken,
-                        onNavigate: { path in
-                            reader.currentPath = path
+                        onNavigationCommitted: { bookID, path in
+                            guard library.selectedBookID == bookID else { return }
+                            reader.synchronizeCommittedNavigation(bookID: bookID, path: path)
+                        },
+                        onNavigationFinished: { bookID, path in
+                            guard library.selectedBookID == bookID else { return }
+                            reader.synchronizeCommittedNavigation(bookID: bookID, path: path)
                             library.remember(path: path)
                         },
-                        onScroll: { path, scrollY in
-                            reader.scrollY = scrollY
-                            library.scrollPositions.save(bookID: book.id, path: path, scrollY: scrollY)
+                        onScroll: { bookID, path, scrollY in
+                            guard library.selectedBookID == bookID else { return }
+                            reader.synchronizeScroll(bookID: bookID, path: path, scrollY: scrollY)
+                            library.scrollPositions.save(
+                                bookID: bookID,
+                                path: SecurityPolicy.documentPath(path),
+                                scrollY: scrollY
+                            )
                         },
                         onTitle: { title in
                             currentTitle = title.nilIfBlank() ?? book.title
@@ -53,6 +65,7 @@ struct ReaderPane: View {
                             findTotalMatches = total
                         }
                     )
+                    .id(book.id)
                 } else {
                     Color.clear
                 }
@@ -83,15 +96,47 @@ struct ReaderPane: View {
                 findCurrentMatch = 0
             }
         }
+        .onChange(of: library.selectedBookID) { _, _ in
+            navigationController.reset()
+            currentTitle = ""
+        }
         .background {
-            Button("") { showFindBar = true }
-                .keyboardShortcut("f", modifiers: .command)
-                .hidden()
+            Group {
+                Button("") { showFindBar = true }
+                    .keyboardShortcut("f", modifiers: .command)
+                    .hidden()
+                Button("") { navigationController.goBack() }
+                    .keyboardShortcut("[", modifiers: .command)
+                    .hidden()
+                    .disabled(!navigationController.canGoBack)
+                Button("") { navigationController.goForward() }
+                    .keyboardShortcut("]", modifiers: .command)
+                    .hidden()
+                    .disabled(!navigationController.canGoForward)
             }
+        }
     }
 
     private var toolbar: some View {
         HStack(spacing: 10) {
+            ReaderToolbarButton(
+                title: "reader_back".loc,
+                systemImage: "chevron.left",
+                isDisabled: !navigationController.canGoBack,
+                hoveredTitle: $hoveredToolbarTitle
+            ) {
+                navigationController.goBack()
+            }
+
+            ReaderToolbarButton(
+                title: "reader_forward".loc,
+                systemImage: "chevron.right",
+                isDisabled: !navigationController.canGoForward,
+                hoveredTitle: $hoveredToolbarTitle
+            ) {
+                navigationController.goForward()
+            }
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(currentTitle.isEmpty ? "reader_no_document".loc : currentTitle)
                     .font(.headline)

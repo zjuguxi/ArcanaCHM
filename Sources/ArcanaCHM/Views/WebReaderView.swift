@@ -7,14 +7,16 @@ enum FindDirection {
 
 struct WebReaderView: NSViewRepresentable {
     var book: Book
+    var navigationController: ReaderNavigationController
     var path: String
     var scrollY: Double
     var fontScale: Double
     var spotlightMode: Bool
     var searchQuery: String
     var navigationToken: UUID
-    var onNavigate: (String) -> Void
-    var onScroll: (String, Double) -> Void
+    var onNavigationCommitted: (UUID, String) -> Void
+    var onNavigationFinished: (UUID, String) -> Void
+    var onScroll: (UUID, String, Double) -> Void
     var onTitle: (String) -> Void
     var findQuery: String
     var findNavigationTrigger: UUID
@@ -49,10 +51,12 @@ struct WebReaderView: NSViewRepresentable {
         webView.allowsBackForwardNavigationGestures = true
         webView.setValue(false, forKey: "drawsBackground")
         context.coordinator.webView = webView
+        navigationController.attach(webView)
+        context.coordinator.observeURL(of: webView)
         context.coordinator.installContentBlocker { succeeded in
             context.coordinator.isContentBlockerReady = succeeded
             if succeeded {
-                load(webView)
+                context.coordinator.parent.load(webView, coordinator: context.coordinator)
             } else {
                 webView.loadHTMLString(Self.securityConfigurationFailedHTML, baseURL: nil)
             }
@@ -64,11 +68,21 @@ struct WebReaderView: NSViewRepresentable {
         context.coordinator.parent = self
         guard context.coordinator.isContentBlockerReady else { return }
         let targetURL = fileURL()
-        if webView.url?.standardizedFileURL != targetURL.standardizedFileURL {
-            load(webView)
+        let navigationChanged = context.coordinator.lastNavigationToken != navigationToken
+        if Self.shouldLoad(
+            currentURL: webView.url,
+            targetURL: targetURL,
+            navigationChanged: navigationChanged
+        ) {
+            // A URL mismatch alone is not an app navigation request. During native
+            // back/forward navigation WebKit changes its URL before SwiftUI receives
+            // the committed path; reloading the stale SwiftUI path here cancels the
+            // traversal and produces a visible flash.
+            load(webView, coordinator: context.coordinator)
+        } else if !Self.sameReaderLocation(webView.url, targetURL) {
+            return
         } else {
             let shouldScrollToMatch = context.coordinator.lastHighlightedQuery != normalizedSearchQuery
-            let navigationChanged = context.coordinator.lastNavigationToken != navigationToken
             injectStyle(into: webView, scrollToMatch: shouldScrollToMatch, scrollY: navigationChanged ? scrollY : nil)
             context.coordinator.lastHighlightedQuery = normalizedSearchQuery
             context.coordinator.lastNavigationToken = navigationToken
@@ -85,10 +99,19 @@ struct WebReaderView: NSViewRepresentable {
         }
     }
 
+    static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
+        coordinator.stopObservingURL()
+        coordinator.parent.navigationController.detach(webView)
+        webView.navigationDelegate = nil
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "reader")
+    }
+
     @MainActor
-    private func load(_ webView: WKWebView) {
+    private func load(_ webView: WKWebView, coordinator: Coordinator) {
         webView.appearance = NSAppearance(named: .aqua)
         let url = fileURL()
+        coordinator.pendingScroll = .init(url: url, scrollY: scrollY)
+        coordinator.lastNavigationToken = navigationToken
         if url == book.rootURL {
             webView.loadHTMLString(Self.pageNotFoundHTML(title: book.title), baseURL: nil)
         } else {
@@ -105,6 +128,23 @@ struct WebReaderView: NSViewRepresentable {
             return homeURL
         }
         return book.rootURL
+    }
+
+    fileprivate static func sameReaderLocation(_ lhs: URL?, _ rhs: URL?) -> Bool {
+        guard let lhs, let rhs else { return false }
+        let leftFragment = lhs.fragment
+        let rightFragment = rhs.fragment
+        let left = lhs.standardizedFileURL.resolvingSymlinksInPath()
+        let right = rhs.standardizedFileURL.resolvingSymlinksInPath()
+        return left.path == right.path && leftFragment == rightFragment
+    }
+
+    static func shouldLoad(
+        currentURL: URL?,
+        targetURL: URL?,
+        navigationChanged: Bool
+    ) -> Bool {
+        navigationChanged && !sameReaderLocation(currentURL, targetURL)
     }
 
     private var normalizedSearchQuery: String {
@@ -369,16 +409,70 @@ struct WebReaderView: NSViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+        struct PendingScroll {
+            let url: URL
+            let scrollY: Double
+        }
+
         var parent: WebReaderView
         var lastHighlightedQuery = ""
         var lastNavigationToken: UUID?
         var lastFindQuery = ""
         var lastFindNavigationTrigger = UUID()
         var isContentBlockerReady = false
+        var pendingScroll: PendingScroll?
         weak var webView: WKWebView?
+        private var urlObservation: NSKeyValueObservation?
+        private var lastCommittedReaderPath: String?
 
         init(_ parent: WebReaderView) {
             self.parent = parent
+        }
+
+        func observeURL(of webView: WKWebView) {
+            stopObservingURL()
+            urlObservation = webView.observe(\.url, options: [.new]) { [weak self, weak webView] _, _ in
+                Task { @MainActor in
+                    guard let self, let webView else { return }
+                    self.handleObservedURL(webView)
+                }
+            }
+        }
+
+        func stopObservingURL() {
+            urlObservation?.invalidate()
+            urlObservation = nil
+        }
+
+        private func handleObservedURL(_ webView: WKWebView) {
+            parent.navigationController.refreshState()
+            guard let path = readerPath(for: webView.url),
+                  let previous = lastCommittedReaderPath,
+                  path != previous,
+                  SecurityPolicy.documentPath(path) == SecurityPolicy.documentPath(previous)
+            else {
+                return
+            }
+            lastCommittedReaderPath = path
+            parent.onNavigationCommitted(parent.book.id, path)
+            parent.onNavigationFinished(parent.book.id, path)
+        }
+
+        private func readerPath(for url: URL?) -> String? {
+            guard let url,
+                  url.isFileURL,
+                  SecurityPolicy.isDescendant(url, of: parent.book.rootURL)
+            else {
+                return nil
+            }
+            return SecurityPolicy.readerRelativePath(for: url, rootURL: parent.book.rootURL)
+        }
+
+        private func synchronizeCommittedLocation(_ webView: WKWebView) {
+            guard let path = readerPath(for: webView.url) else { return }
+            lastCommittedReaderPath = path
+            parent.onNavigationCommitted(parent.book.id, path)
+            parent.navigationController.refreshState()
         }
 
         // WKContentRuleList's regex subset does not support `|`; keep schemes in separate rules.
@@ -429,10 +523,14 @@ struct WebReaderView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            pendingScroll = nil
+            parent.navigationController.refreshState()
             NSLog("ArcanaCHM: web navigation failed for \(webView.url?.absoluteString ?? "unknown URL"): \(error)")
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            pendingScroll = nil
+            parent.navigationController.refreshState()
             NSLog("ArcanaCHM: provisional web navigation failed for \(webView.url?.absoluteString ?? "unknown URL"): \(error)")
         }
 
@@ -440,9 +538,22 @@ struct WebReaderView: NSViewRepresentable {
             NSLog("ArcanaCHM: WebKit content process terminated while loading \(webView.url?.absoluteString ?? "unknown URL")")
         }
 
+        func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+            synchronizeCommittedLocation(webView)
+        }
+
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            synchronizeCommittedLocation(webView)
             let hasSearch = !parent.normalizedSearchQuery.isEmpty
-            parent.injectStyle(into: webView, scrollToMatch: hasSearch, scrollY: hasSearch ? nil : parent.scrollY)
+            let requestedScroll: Double?
+            if let pendingScroll,
+               WebReaderView.sameReaderLocation(pendingScroll.url, webView.url) {
+                requestedScroll = pendingScroll.scrollY
+            } else {
+                requestedScroll = nil
+            }
+            pendingScroll = nil
+            parent.injectStyle(into: webView, scrollToMatch: hasSearch, scrollY: hasSearch ? nil : requestedScroll)
             lastHighlightedQuery = parent.normalizedSearchQuery
             lastNavigationToken = parent.navigationToken
             lastFindQuery = parent.findQuery
@@ -450,6 +561,10 @@ struct WebReaderView: NSViewRepresentable {
                 let escaped = parent.findQuery.javascriptStringLiteral
                 webView.evaluateJavaScript("window.__arcanaFindInPage(\(escaped))")
             }
+            if let path = readerPath(for: webView.url) {
+                parent.onNavigationFinished(parent.book.id, path)
+            }
+            parent.navigationController.refreshState()
         }
 
         func webView(
@@ -482,12 +597,6 @@ struct WebReaderView: NSViewRepresentable {
                 return
             }
 
-            if navigationAction.navigationType == .linkActivated,
-               let relative = SecurityPolicy.relativePath(for: resolved, rootURL: parent.book.rootURL),
-               SecurityPolicy.safeFileURL(rootURL: parent.book.rootURL, relativePath: relative) != nil {
-                parent.onNavigate(relative)
-            }
-
             decisionHandler(.allow, preferences)
         }
 
@@ -499,8 +608,9 @@ struct WebReaderView: NSViewRepresentable {
                 return
             }
 
-            if type == "scroll", let y = body["y"] as? Double, y >= 0, y.isFinite {
-                parent.onScroll(parent.path, y)
+            if type == "scroll", let y = body["y"] as? Double, y >= 0, y.isFinite,
+               let path = readerPath(for: message.frameInfo.request.url ?? message.webView?.url) {
+                parent.onScroll(parent.book.id, path, y)
             } else if type == "title", let title = body["title"] as? String {
                 parent.onTitle(String(title.prefix(1_024)))
             } else if type == "find",

@@ -119,14 +119,16 @@ final class FindInPageTests: XCTestCase {
     ) -> WebReaderView {
         WebReaderView(
             book: Book.empty(title: "Test", rootURL: URL(fileURLWithPath: "/tmp")),
+            navigationController: ReaderNavigationController(),
             path: "test.html",
             scrollY: 0,
             fontScale: 1.0,
             spotlightMode: false,
             searchQuery: "",
             navigationToken: UUID(),
-            onNavigate: { _ in },
-            onScroll: { _, _ in },
+            onNavigationCommitted: { _, _ in },
+            onNavigationFinished: { _, _ in },
+            onScroll: { _, _, _ in },
             onTitle: { _ in },
             findQuery: findQuery,
             findNavigationTrigger: findNavigationTrigger,

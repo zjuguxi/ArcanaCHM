@@ -357,9 +357,11 @@ final class LibraryStore: ObservableObject {
     }
 
     private func displayTitle(for path: String, in book: Book) -> String {
+        let documentPath = SecurityPolicy.documentPath(path)
         func walk(_ items: [TOCItem]) -> String? {
             for item in items {
-                if item.path == path {
+                if let itemPath = item.path,
+                   SecurityPolicy.documentPath(itemPath) == documentPath {
                     return item.title
                 }
                 if let child = walk(item.children) {
@@ -368,7 +370,7 @@ final class LibraryStore: ObservableObject {
             }
             return nil
         }
-        return walk(book.toc) ?? URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+        return walk(book.toc) ?? URL(fileURLWithPath: documentPath).deletingPathExtension().lastPathComponent
     }
 }
 

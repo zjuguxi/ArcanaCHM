@@ -46,6 +46,8 @@
 "reader_no_document" = "未选择文档";
 "reader_start_reading" = "导入 CHM 文档后开始阅读";
 "reader_import_chm" = "导入 CHM";
+"reader_back" = "后退（⌘[）";
+"reader_forward" = "前进（⌘]）";
 "reader_font_decrease" = "缩小字体";
 "reader_font_increase" = "放大字体";
 "reader_focus_mode" = "专注模式";

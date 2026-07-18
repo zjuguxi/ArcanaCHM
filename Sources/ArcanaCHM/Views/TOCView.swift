@@ -78,10 +78,17 @@ struct TOCView: View {
     }
 
     private func parentIDs(containing path: String, in items: [TOCItem]) -> Set<UUID> {
+        let documentPath = SecurityPolicy.documentPath(path)
         for item in items {
-            if item.path == path { return [] }
+            if let itemPath = item.path,
+               SecurityPolicy.documentPath(itemPath) == documentPath {
+                return []
+            }
             let childMatches = parentIDs(containing: path, in: item.children)
-            if !childMatches.isEmpty || item.children.contains(where: { $0.path == path }) {
+            if !childMatches.isEmpty || item.children.contains(where: { child in
+                guard let childPath = child.path else { return false }
+                return SecurityPolicy.documentPath(childPath) == documentPath
+            }) {
                 return childMatches.union([item.id])
             }
         }
@@ -159,7 +166,8 @@ struct TOCNodeRow: View {
     }
 
     private var isCurrent: Bool {
-        item.path != nil && item.path == currentPath
+        guard let itemPath = item.path, let currentPath else { return false }
+        return SecurityPolicy.documentPath(itemPath) == SecurityPolicy.documentPath(currentPath)
     }
 
     var body: some View {

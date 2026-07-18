@@ -66,6 +66,20 @@ enum SecurityPolicy {
         return relativePath(path: path, rootPath: root)
     }
 
+    static func readerRelativePath(for fileURL: URL, rootURL: URL) -> String? {
+        guard let relative = relativePath(for: fileURL, rootURL: rootURL), !relative.isEmpty else {
+            return nil
+        }
+        guard let fragment = fileURL.fragment, !fragment.isEmpty else {
+            return relative
+        }
+        return "\(relative)#\(fragment)"
+    }
+
+    static func documentPath(_ readerPath: String) -> String {
+        String(readerPath.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)[0])
+    }
+
     static func relativePath(path: String, rootPath: String) -> String? {
         guard path == rootPath || path.hasPrefix(rootPath + "/") else { return nil }
         return String(path.dropFirst(rootPath.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))

@@ -171,6 +171,28 @@ final class SecurityPolicyTests: XCTestCase {
         XCTAssertEqual(SecurityPolicy.relativePath(for: root, rootURL: root), "")
     }
 
+    func testReaderRelativePathPreservesFragment() {
+        let root = URL(fileURLWithPath: "/tmp/books/testbook")
+        let file = URL(string: "file:///tmp/books/testbook/chapter.html#details")!
+
+        XCTAssertEqual(
+            SecurityPolicy.readerRelativePath(for: file, rootURL: root),
+            "chapter.html#details"
+        )
+    }
+
+    func testReaderRelativePathRejectsOutsideRoot() {
+        let root = URL(fileURLWithPath: "/tmp/books/testbook")
+        let file = URL(string: "file:///tmp/books/other/chapter.html#details")!
+
+        XCTAssertNil(SecurityPolicy.readerRelativePath(for: file, rootURL: root))
+    }
+
+    func testDocumentPathStripsFragment() {
+        XCTAssertEqual(SecurityPolicy.documentPath("chapter.html#details"), "chapter.html")
+        XCTAssertEqual(SecurityPolicy.documentPath("chapter.html"), "chapter.html")
+    }
+
     // MARK: - readableExtensions
 
     func testReadableExtensions() {

@@ -46,6 +46,8 @@
 "reader_no_document" = "No Document Selected";
 "reader_start_reading" = "Start reading after importing a CHM document";
 "reader_import_chm" = "Import CHM";
+"reader_back" = "Back (⌘[)";
+"reader_forward" = "Forward (⌘])";
 "reader_font_decrease" = "Decrease Font Size";
 "reader_font_increase" = "Increase Font Size";
 "reader_focus_mode" = "Focus Mode";

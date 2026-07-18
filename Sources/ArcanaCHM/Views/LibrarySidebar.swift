@@ -95,14 +95,10 @@ struct LibrarySidebar: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .onChange(of: library.selectedBookID) { _, _ in
-            if let book = library.selectedBook, let path = book.lastReadPath ?? book.homePath {
-                reader.open(path, scrollY: library.scrollPositions.scrollY(bookID: book.id, path: path))
-            }
+            synchronizeReadingSession()
         }
         .onChange(of: library.books) { _, _ in
-            if let book = library.selectedBook, reader.currentPath == nil, let path = book.lastReadPath ?? book.homePath {
-                reader.open(path, scrollY: library.scrollPositions.scrollY(bookID: book.id, path: path))
-            }
+            synchronizeReadingSession()
         }
         .alert("sidebar_delete_confirm_title".loc, isPresented: Binding(
             get: { pendingDeleteBook != nil },
@@ -120,5 +116,22 @@ struct LibrarySidebar: View {
         } message: {
             Text("sidebar_delete_confirm_message".loc(pendingDeleteBook?.title ?? ""))
         }
+    }
+
+    private func synchronizeReadingSession() {
+        guard let book = library.selectedBook else {
+            reader.endSession()
+            return
+        }
+        guard reader.currentBookID != book.id else { return }
+        let path = book.lastReadPath ?? book.homePath
+        reader.beginSession(
+            bookID: book.id,
+            path: path,
+            scrollY: library.scrollPositions.scrollY(
+                bookID: book.id,
+                path: path.map(SecurityPolicy.documentPath)
+            )
+        )
     }
 }
