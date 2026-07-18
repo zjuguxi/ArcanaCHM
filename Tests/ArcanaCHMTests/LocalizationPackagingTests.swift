@@ -61,6 +61,27 @@ final class LocalizationPackagingTests: XCTestCase {
         )
     }
 
+    func testResolveBundle_appLayoutDoesNotEvaluateModuleBundle() throws {
+        let appBundle = try makeAppShapedBundle(lproj: "en", value: "Follow System")
+        var evaluatedModuleBundle = false
+
+        func moduleBundleThatMustStayLazy() -> Bundle {
+            evaluatedModuleBundle = true
+            return Bundle.module
+        }
+
+        _ = LocalizationService.resolveLocalizationBundle(
+            mainBundle: appBundle,
+            moduleBundle: moduleBundleThatMustStayLazy(),
+            languageCode: "en"
+        )
+
+        XCTAssertFalse(
+            evaluatedModuleBundle,
+            "A packaged app must resolve from Bundle.main without evaluating Bundle.module, whose generated accessor fatalErrors when the SwiftPM resource bundle is absent."
+        )
+    }
+
     func testResolveBundle_nonAppFallsBackToModuleBundle() throws {
         let nonAppDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("not-an-app-\(UUID().uuidString)", isDirectory: true)
@@ -81,4 +102,3 @@ final class LocalizationPackagingTests: XCTestCase {
                        "Non-.app main bundle must not be used as the localization source.")
     }
 }
-

@@ -4,6 +4,10 @@
 <dict>
   <key>com.apple.security.app-sandbox</key>
   <true/>
+  <!-- WKWebView's Web Content process requires the client entitlement to launch,
+       even though ArcanaCHM blocks remote content at the reader layer. -->
+  <key>com.apple.security.network.client</key>
+  <true/>
   <key>com.apple.security.files.user-selected.read-only</key>
   <true/>
   <key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>

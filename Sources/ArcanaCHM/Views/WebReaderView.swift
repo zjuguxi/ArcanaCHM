@@ -381,40 +381,63 @@ struct WebReaderView: NSViewRepresentable {
             self.parent = parent
         }
 
+        // WKContentRuleList's regex subset does not support `|`; keep schemes in separate rules.
+        static let contentBlockerRules = """
+        [
+          {
+            "trigger": { "url-filter": "^https?://.*" },
+            "action": { "type": "block" }
+          },
+          {
+            "trigger": { "url-filter": "^ftps?://.*" },
+            "action": { "type": "block" }
+          },
+          {
+            "trigger": { "url-filter": "^wss?://.*" },
+            "action": { "type": "block" }
+          },
+          {
+            "trigger": { "url-filter": "^data:.*" },
+            "action": { "type": "block" }
+          },
+          {
+            "trigger": { "url-filter": "^blob:.*" },
+            "action": { "type": "block" }
+          },
+          {
+            "trigger": { "url-filter": ".*", "resource-type": ["script"] },
+            "action": { "type": "block" }
+          }
+        ]
+        """
+
         func installContentBlocker(completion: @escaping @MainActor (Bool) -> Void) {
-            let rules = """
-            [
-              {
-                "trigger": { "url-filter": "^(https?|ftps?|wss?)://.*" },
-                "action": { "type": "block" }
-              },
-              {
-                "trigger": { "url-filter": "^data:.*" },
-                "action": { "type": "block" }
-              },
-              {
-                "trigger": { "url-filter": "^blob:.*" },
-                "action": { "type": "block" }
-              },
-              {
-                "trigger": { "url-filter": ".*", "resource-type": ["script"] },
-                "action": { "type": "block" }
-              }
-            ]
-            """
             WKContentRuleListStore.default().compileContentRuleList(
                 forIdentifier: "ArcanaCHM.BlockRemoteContent",
-                encodedContentRuleList: rules
-            ) { [weak self] ruleList, _ in
+                encodedContentRuleList: Self.contentBlockerRules
+            ) { [weak self] ruleList, error in
                 DispatchQueue.main.async {
                     if let ruleList {
                         self?.webView?.configuration.userContentController.add(ruleList)
                         completion(true)
                     } else {
+                        NSLog("ArcanaCHM: content blocker compilation failed: \(error?.localizedDescription ?? "unknown error")")
                         completion(false)
                     }
                 }
             }
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            NSLog("ArcanaCHM: web navigation failed for \(webView.url?.absoluteString ?? "unknown URL"): \(error)")
+        }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            NSLog("ArcanaCHM: provisional web navigation failed for \(webView.url?.absoluteString ?? "unknown URL"): \(error)")
+        }
+
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            NSLog("ArcanaCHM: WebKit content process terminated while loading \(webView.url?.absoluteString ?? "unknown URL")")
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

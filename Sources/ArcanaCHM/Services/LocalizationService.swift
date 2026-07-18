@@ -46,7 +46,7 @@ final class LocalizationService: ObservableObject {
 
     static func resolveLocalizationBundle(
         mainBundle: Bundle,
-        moduleBundle: Bundle,
+        moduleBundle: @autoclosure () -> Bundle,
         languageCode: String
     ) -> Bundle {
         if mainBundle.bundlePath.hasSuffix(".app"),
@@ -57,6 +57,7 @@ final class LocalizationService: ObservableObject {
             }
             return mainBundle
         }
+        let moduleBundle = moduleBundle()
         if let path = moduleBundle.path(forResource: languageCode, ofType: "lproj"),
            let bundle = Bundle(path: path) {
             return bundle
