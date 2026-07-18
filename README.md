@@ -29,8 +29,8 @@ A local-first macOS CHM reader. Native SwiftUI, offline by design.
 
 ```bash
 swift build                       # build executable
-Scripts/package_app.sh 1.3.8      # create an ad-hoc signed local app
-Scripts/package_dmg.sh 1.3.8      # create distributable DMG
+Scripts/package_app.sh 1.3.9      # create an ad-hoc signed local app
+Scripts/package_dmg.sh 1.3.9      # create distributable DMG
 ```
 
 Packages and tagged releases are ad-hoc signed and are not notarized by Apple. On first launch, right-click ArcanaCHM and choose **Open**; if macOS still blocks it, allow it in **System Settings → Privacy & Security**. Release DMGs include a SHA-256 checksum and GitHub build provenance. The bundled 7-Zip archive and binary are verified against pinned SHA-256 values.
