@@ -163,8 +163,6 @@ final class TOCParserTests: XCTestCase {
         </body></html>
         """#)
         let toc = TOCParser(rootURL: dir).parse()
-        // HHCTokenizer regex `<\s*UL\s*>` does not match `<ul class="...">`,
-        // but OBJECT tokens are still extracted so items are found flat
         XCTAssertEqual(toc.count, 1)
         XCTAssertEqual(toc[0].title, "Chapter 1")
         XCTAssertEqual(toc[0].path, "ch1.html")
@@ -181,7 +179,7 @@ final class TOCParserTests: XCTestCase {
         XCTAssertEqual(toc[0].title, "Topic")
     }
 
-    func testParse_nestedUlWithAttributes_noNesting() throws {
+    func testParse_nestedUlWithAttributes_preservesNesting() throws {
         let dir = try createHHCFile(#"""
         <ul class="level1">
         <li><object><param name="Name" value="Parent"><param name="Local" value="p.html"></object>
@@ -192,12 +190,10 @@ final class TOCParserTests: XCTestCase {
         </ul>
         """#)
         let toc = TOCParser(rootURL: dir).parse()
-        // Both `<ul class="...">` fail to match as ulStart/ulEnd,
-        // so both items appear flat rather than nested
-        XCTAssertEqual(toc.count, 2)
+        XCTAssertEqual(toc.count, 1)
         XCTAssertEqual(toc[0].title, "Parent")
-        XCTAssertEqual(toc[1].title, "Child")
-        XCTAssertTrue(toc[0].children.isEmpty, "nesting is lost when UL has attributes")
+        XCTAssertEqual(toc[0].children.count, 1)
+        XCTAssertEqual(toc[0].children[0].title, "Child")
     }
 
     func testParse_ulWithIdAttribute() throws {

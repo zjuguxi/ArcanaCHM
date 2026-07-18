@@ -1,8 +1,21 @@
 import XCTest
+import WebKit
 @testable import ArcanaCHM
 
 @MainActor
 final class WebReaderNavigationBridgeTests: XCTestCase {
+    func testReaderUsesOpaqueUnderPageBackground() {
+        let webView = WKWebView(frame: .zero)
+
+        WebReaderView.configureRendering(of: webView)
+
+        XCTAssertEqual(webView.underPageBackgroundColor.alphaComponent, 1, accuracy: 0.001)
+        XCTAssertEqual(
+            webView.underPageBackgroundColor.usingColorSpace(.sRGB),
+            WebReaderView.readerBackgroundColor.usingColorSpace(.sRGB)
+        )
+    }
+
     func testNativeBackForwardMismatchDoesNotTriggerStaleReload() {
         let webViewURL = URL(string: "file:///tmp/book/a.html")!
         let staleSwiftUIURL = URL(string: "file:///tmp/book/b.html")!
@@ -41,16 +54,38 @@ final class WebReaderNavigationBridgeTests: XCTestCase {
         )
     }
 
-    func testAppFragmentNavigationTriggersLoad() {
+    func testAppFragmentNavigationStaysWithinLoadedDocument() {
         let currentURL = URL(string: "file:///tmp/book/a.html#one")!
         let requestedURL = URL(string: "file:///tmp/book/a.html#two")!
 
-        XCTAssertTrue(
+        XCTAssertEqual(
+            WebReaderView.navigationAction(
+                currentURL: currentURL,
+                targetURL: requestedURL,
+                navigationChanged: true
+            ),
+            .navigateWithinDocument
+        )
+        XCTAssertFalse(
             WebReaderView.shouldLoad(
                 currentURL: currentURL,
                 targetURL: requestedURL,
                 navigationChanged: true
             )
+        )
+    }
+
+    func testFragmentMismatchWithoutAppNavigationAwaitsWebKitCommit() {
+        let currentURL = URL(string: "file:///tmp/book/a.html#one")!
+        let requestedURL = URL(string: "file:///tmp/book/a.html#two")!
+
+        XCTAssertEqual(
+            WebReaderView.navigationAction(
+                currentURL: currentURL,
+                targetURL: requestedURL,
+                navigationChanged: false
+            ),
+            .awaitCommittedNavigation
         )
     }
 }

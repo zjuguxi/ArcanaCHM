@@ -75,7 +75,7 @@ struct ReaderPane: View {
                     Color.clear
                 }
             }
-            .background(Color(nsColor: .textBackgroundColor))
+            .background(Color(nsColor: WebReaderView.readerBackgroundColor))
 
             if let hoveredToolbarTitle {
                 Text(hoveredToolbarTitle)

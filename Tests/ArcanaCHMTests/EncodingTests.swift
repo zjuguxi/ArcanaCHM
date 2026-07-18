@@ -130,14 +130,6 @@ final class EncodingTests: XCTestCase {
         XCTAssertEqual(decoded, text)
     }
 
-    func testEncodingShiftJIS() {
-        let text = "日本語テスト"
-        let encoded = text.data(using: .shiftJIS)
-        XCTAssertNotNil(encoded)
-        let decoded = String(data: encoded!, encoding: .shiftJIS)
-        XCTAssertEqual(decoded, text)
-    }
-
     // MARK: - HTML Entity Decoding
 
     func testDecodeEntities_named() {

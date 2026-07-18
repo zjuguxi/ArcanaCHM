@@ -147,7 +147,7 @@ private struct HHCTokenizer {
     private var index = 0
 
     init(_ html: String) {
-        let pattern = #"(?is)<\s*UL\s*>|<\s*/\s*UL\s*>|<\s*LI\s*>|<\s*OBJECT\b[\s\S]*?<\s*/\s*OBJECT\s*>"#
+        let pattern = #"(?is)<\s*UL\b[^>]*>|<\s*/\s*UL\s*>|<\s*LI\b[^>]*>|<\s*OBJECT\b[\s\S]*?<\s*/\s*OBJECT\s*>"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else {
             tokens = []
             return
@@ -158,10 +158,14 @@ private struct HHCTokenizer {
             guard let swiftRange = Range(match.range, in: html) else { return nil }
             let raw = String(html[swiftRange])
             let lower = raw.lowercased()
-            // Fast path: check prefixes instead of regex
-            if lower.hasPrefix("</ul>") || lower == "</ul>" { return .ulEnd }
-            if lower == "<li>" { return .li }
-            if lower.hasPrefix("<ul") { return .ulStart }
+            let compactPrefix = lower.replacingOccurrences(
+                of: #"\s+"#,
+                with: "",
+                options: .regularExpression
+            )
+            if compactPrefix.hasPrefix("</ul") { return .ulEnd }
+            if compactPrefix.hasPrefix("<li") { return .li }
+            if compactPrefix.hasPrefix("<ul") { return .ulStart }
             return .object(raw)
         }
     }

@@ -6,6 +6,25 @@ enum FindDirection {
 }
 
 struct WebReaderView: NSViewRepresentable {
+    static let readerBackgroundColor = NSColor(
+        srgbRed: 251.0 / 255.0,
+        green: 252.0 / 255.0,
+        blue: 250.0 / 255.0,
+        alpha: 1
+    )
+
+    enum NavigationAction: Equatable {
+        case none
+        case navigateWithinDocument
+        case loadDocument
+        case awaitCommittedNavigation
+    }
+
+    struct FindUpdateActions: Equatable {
+        let queryChanged: Bool
+        let navigationChanged: Bool
+    }
+
     var book: Book
     var navigationController: ReaderNavigationController
     var path: String
@@ -49,7 +68,7 @@ struct WebReaderView: NSViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
-        webView.setValue(false, forKey: "drawsBackground")
+        Self.configureRendering(of: webView)
         context.coordinator.webView = webView
         navigationController.attach(webView)
         context.coordinator.observeURL(of: webView)
@@ -64,39 +83,84 @@ struct WebReaderView: NSViewRepresentable {
         return webView
     }
 
+    static func configureRendering(of webView: WKWebView) {
+        // Keep WebKit's backing surface opaque. A transparent WKWebView can expose
+        // the dark SwiftUI/window backing layer for one compositor frame while a
+        // cross-document navigation swaps its content layers.
+        webView.appearance = NSAppearance(named: .aqua)
+        webView.underPageBackgroundColor = readerBackgroundColor
+    }
+
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.parent = self
         guard context.coordinator.isContentBlockerReady else { return }
         let targetURL = fileURL()
         let navigationChanged = context.coordinator.lastNavigationToken != navigationToken
-        if Self.shouldLoad(
+        switch Self.navigationAction(
             currentURL: webView.url,
             targetURL: targetURL,
             navigationChanged: navigationChanged
         ) {
+        case .loadDocument:
             // A URL mismatch alone is not an app navigation request. During native
             // back/forward navigation WebKit changes its URL before SwiftUI receives
             // the committed path; reloading the stale SwiftUI path here cancels the
             // traversal and produces a visible flash.
-            load(webView, coordinator: context.coordinator)
-        } else if !Self.sameReaderLocation(webView.url, targetURL) {
+            beginDocumentTransition(webView, coordinator: context.coordinator)
+        case .navigateWithinDocument:
+            navigateWithinDocument(webView, to: targetURL, coordinator: context.coordinator)
+        case .awaitCommittedNavigation:
             return
-        } else {
+        case .none:
             let shouldScrollToMatch = context.coordinator.lastHighlightedQuery != normalizedSearchQuery
             injectStyle(into: webView, scrollToMatch: shouldScrollToMatch, scrollY: navigationChanged ? scrollY : nil)
             context.coordinator.lastHighlightedQuery = normalizedSearchQuery
             context.coordinator.lastNavigationToken = navigationToken
-            if findQuery != context.coordinator.lastFindQuery {
+            let findActions = Self.findUpdateActions(
+                findQuery: findQuery,
+                lastFindQuery: context.coordinator.lastFindQuery,
+                findNavigationTrigger: findNavigationTrigger,
+                lastFindNavigationTrigger: context.coordinator.lastFindNavigationTrigger
+            )
+            if findActions.queryChanged {
                 context.coordinator.lastFindQuery = findQuery
                 let escaped = findQuery.javascriptStringLiteral
                 webView.evaluateJavaScript("window.__arcanaFindInPage(\(escaped))")
             }
-            if findNavigationTrigger != context.coordinator.lastFindNavigationTrigger {
+            if findActions.navigationChanged {
                 context.coordinator.lastFindNavigationTrigger = findNavigationTrigger
                 let dir = findDirection == .next ? "'next'" : "'previous'"
                 webView.evaluateJavaScript("window.__arcanaNavigateFind(\(dir))")
             }
         }
+    }
+
+    @MainActor
+    private func beginDocumentTransition(
+        _ webView: WKWebView,
+        coordinator: Coordinator
+    ) {
+        let requestedToken = navigationToken
+        coordinator.lastNavigationToken = requestedToken
+        coordinator.captureCurrentPage(on: webView, navigationToken: requestedToken) {
+            guard coordinator.lastNavigationToken == requestedToken else { return }
+            load(webView, coordinator: coordinator)
+        }
+    }
+
+    @MainActor
+    private func navigateWithinDocument(
+        _ webView: WKWebView,
+        to url: URL,
+        coordinator: Coordinator
+    ) {
+        // loadFileURL reparses the entire document even when only the fragment
+        // changes. Let the loaded page perform a same-document navigation so its
+        // DOM, injected reader style, and current pixels stay in place.
+        coordinator.pendingScroll = nil
+        coordinator.lastNavigationToken = navigationToken
+        let destination = url.absoluteString.javascriptStringLiteral
+        webView.evaluateJavaScript("window.location.assign(\(destination))")
     }
 
     static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
@@ -108,14 +172,19 @@ struct WebReaderView: NSViewRepresentable {
 
     @MainActor
     private func load(_ webView: WKWebView, coordinator: Coordinator) {
-        webView.appearance = NSAppearance(named: .aqua)
         let url = fileURL()
         coordinator.pendingScroll = .init(url: url, scrollY: scrollY)
         coordinator.lastNavigationToken = navigationToken
         if url == book.rootURL {
-            webView.loadHTMLString(Self.pageNotFoundHTML(title: book.title), baseURL: nil)
+            coordinator.activeDocumentNavigation = webView.loadHTMLString(
+                Self.pageNotFoundHTML(title: book.title),
+                baseURL: nil
+            )
         } else {
-            webView.loadFileURL(url, allowingReadAccessTo: book.rootURL)
+            coordinator.activeDocumentNavigation = webView.loadFileURL(
+                url,
+                allowingReadAccessTo: book.rootURL
+            )
         }
     }
 
@@ -139,12 +208,52 @@ struct WebReaderView: NSViewRepresentable {
         return left.path == right.path && leftFragment == rightFragment
     }
 
+    fileprivate static func sameReaderDocument(_ lhs: URL?, _ rhs: URL?) -> Bool {
+        guard let lhs, let rhs else { return false }
+        let left = lhs.standardizedFileURL.resolvingSymlinksInPath()
+        let right = rhs.standardizedFileURL.resolvingSymlinksInPath()
+        return left.path == right.path
+    }
+
+    static func navigationAction(
+        currentURL: URL?,
+        targetURL: URL?,
+        navigationChanged: Bool
+    ) -> NavigationAction {
+        if sameReaderLocation(currentURL, targetURL) {
+            return .none
+        }
+        guard navigationChanged else {
+            return .awaitCommittedNavigation
+        }
+        if sameReaderDocument(currentURL, targetURL) {
+            return .navigateWithinDocument
+        }
+        return .loadDocument
+    }
+
     static func shouldLoad(
         currentURL: URL?,
         targetURL: URL?,
         navigationChanged: Bool
     ) -> Bool {
-        navigationChanged && !sameReaderLocation(currentURL, targetURL)
+        navigationAction(
+            currentURL: currentURL,
+            targetURL: targetURL,
+            navigationChanged: navigationChanged
+        ) == .loadDocument
+    }
+
+    static func findUpdateActions(
+        findQuery: String,
+        lastFindQuery: String,
+        findNavigationTrigger: UUID,
+        lastFindNavigationTrigger: UUID
+    ) -> FindUpdateActions {
+        FindUpdateActions(
+            queryChanged: findQuery != lastFindQuery,
+            navigationChanged: findNavigationTrigger != lastFindNavigationTrigger
+        )
     }
 
     private var normalizedSearchQuery: String {
@@ -152,7 +261,13 @@ struct WebReaderView: NSViewRepresentable {
     }
 
     @MainActor
-    fileprivate func injectStyle(into webView: WKWebView, scrollToMatch: Bool, scrollY: Double? = nil) {
+    fileprivate func injectStyle(
+        into webView: WKWebView,
+        scrollToMatch: Bool,
+        scrollY: Double? = nil,
+        renderReadyToken: String? = nil,
+        completion: ((Error?) -> Void)? = nil
+    ) {
         let css = """
         :root {
           color-scheme: light;
@@ -254,6 +369,27 @@ struct WebReaderView: NSViewRepresentable {
         """
 
         let query = normalizedSearchQuery
+        let afterLayoutScript: String
+        if let renderReadyToken {
+            let scrollScript = scrollY.map { y in
+                "window.scrollTo(0, \(Int(max(0, y))));"
+            } ?? ""
+            afterLayoutScript = """
+            requestAnimationFrame(function() {
+              \(scrollScript)
+              requestAnimationFrame(function() {
+                window.webkit.messageHandlers.reader.postMessage({
+                  type: 'renderReady',
+                  token: \(renderReadyToken.javascriptStringLiteral)
+                });
+              });
+            });
+            """
+        } else if let scrollY {
+            afterLayoutScript = "requestAnimationFrame(function(){ window.scrollTo(0, \(Int(max(0, scrollY)))); });"
+        } else {
+            afterLayoutScript = ""
+        }
         let script = """
         (function() {
           var style = document.getElementById('arcana-reader-style');
@@ -264,13 +400,15 @@ struct WebReaderView: NSViewRepresentable {
           }
           style.textContent = \(css.javascriptStringLiteral);
           window.__arcanaHighlightQuery(\(query.javascriptStringLiteral), \(scrollToMatch ? "true" : "false"));
-          \(scrollY.map { y in "requestAnimationFrame(function(){ window.scrollTo(0, \(Int(max(0, y)))); });" } ?? "")
+          \(afterLayoutScript)
         })();
         """
-        webView.evaluateJavaScript(script)
+        webView.evaluateJavaScript(script) { _, error in
+            completion?(error)
+        }
     }
 
-    private static let appJSContent = """
+    static let appJSContent = """
     window.__arcanaHighlightQuery = function(value, scrollToMatch) {
       document.querySelectorAll('mark.arcana-search-hit').forEach(function(mark) {
         var text = document.createTextNode(mark.textContent || '');
@@ -422,6 +560,8 @@ struct WebReaderView: NSViewRepresentable {
         var isContentBlockerReady = false
         var pendingScroll: PendingScroll?
         weak var webView: WKWebView?
+        var activeDocumentNavigation: WKNavigation?
+        private weak var transitionOverlay: NSImageView?
         private var urlObservation: NSKeyValueObservation?
         private var lastCommittedReaderPath: String?
 
@@ -442,6 +582,57 @@ struct WebReaderView: NSViewRepresentable {
         func stopObservingURL() {
             urlObservation?.invalidate()
             urlObservation = nil
+        }
+
+        func captureCurrentPage(
+            on webView: WKWebView,
+            navigationToken: UUID,
+            completion: @escaping @MainActor () -> Void
+        ) {
+            if transitionOverlay != nil {
+                completion()
+                return
+            }
+
+            webView.takeSnapshot(with: nil) { [weak self, weak webView] image, _ in
+                guard let self, let webView else { return }
+                guard lastNavigationToken == navigationToken else { return }
+                if let image {
+                    let overlay = NSImageView(frame: webView.bounds)
+                    overlay.image = image
+                    overlay.imageScaling = .scaleAxesIndependently
+                    overlay.autoresizingMask = [.width, .height]
+                    overlay.wantsLayer = true
+                    overlay.layer?.backgroundColor = WebReaderView.readerBackgroundColor.cgColor
+                    overlay.layer?.zPosition = 10_000
+                    webView.addSubview(overlay, positioned: .above, relativeTo: nil)
+                    transitionOverlay = overlay
+                }
+                completion()
+            }
+        }
+
+        private func finishDocumentTransition() {
+            transitionOverlay?.removeFromSuperview()
+            transitionOverlay = nil
+            pendingRenderReadyToken = nil
+        }
+
+        private var pendingRenderReadyToken: String?
+
+        private func beginWaitingForRenderedPage() -> String? {
+            guard transitionOverlay != nil else { return nil }
+            let token = UUID().uuidString
+            pendingRenderReadyToken = token
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                guard let self, pendingRenderReadyToken == token else { return }
+                finishDocumentTransition()
+            }
+            return token
+        }
+
+        private func completesActiveDocumentNavigation(_ navigation: WKNavigation?) -> Bool {
+            activeDocumentNavigation == nil || activeDocumentNavigation === navigation
         }
 
         private func handleObservedURL(_ webView: WKWebView) {
@@ -524,12 +715,20 @@ struct WebReaderView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
             pendingScroll = nil
+            if completesActiveDocumentNavigation(navigation) {
+                activeDocumentNavigation = nil
+                finishDocumentTransition()
+            }
             parent.navigationController.refreshState()
             NSLog("ArcanaCHM: web navigation failed for \(webView.url?.absoluteString ?? "unknown URL"): \(error)")
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             pendingScroll = nil
+            if completesActiveDocumentNavigation(navigation) {
+                activeDocumentNavigation = nil
+                finishDocumentTransition()
+            }
             parent.navigationController.refreshState()
             NSLog("ArcanaCHM: provisional web navigation failed for \(webView.url?.absoluteString ?? "unknown URL"): \(error)")
         }
@@ -544,6 +743,8 @@ struct WebReaderView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             synchronizeCommittedLocation(webView)
+            let shouldFinishTransition = completesActiveDocumentNavigation(navigation)
+            let renderReadyToken = shouldFinishTransition ? beginWaitingForRenderedPage() : nil
             let hasSearch = !parent.normalizedSearchQuery.isEmpty
             let requestedScroll: Double?
             if let pendingScroll,
@@ -553,7 +754,18 @@ struct WebReaderView: NSViewRepresentable {
                 requestedScroll = nil
             }
             pendingScroll = nil
-            parent.injectStyle(into: webView, scrollToMatch: hasSearch, scrollY: hasSearch ? nil : requestedScroll)
+            parent.injectStyle(
+                into: webView,
+                scrollToMatch: hasSearch,
+                scrollY: hasSearch ? nil : requestedScroll,
+                renderReadyToken: renderReadyToken
+            ) { [weak self] error in
+                guard let self, shouldFinishTransition else { return }
+                activeDocumentNavigation = nil
+                if error != nil || renderReadyToken == nil {
+                    finishDocumentTransition()
+                }
+            }
             lastHighlightedQuery = parent.normalizedSearchQuery
             lastNavigationToken = parent.navigationToken
             lastFindQuery = parent.findQuery
@@ -613,6 +825,10 @@ struct WebReaderView: NSViewRepresentable {
                 parent.onScroll(parent.book.id, path, y)
             } else if type == "title", let title = body["title"] as? String {
                 parent.onTitle(String(title.prefix(1_024)))
+            } else if type == "renderReady",
+                      let token = body["token"] as? String,
+                      token == pendingRenderReadyToken {
+                finishDocumentTransition()
             } else if type == "find",
                       let count = body["count"] as? Int,
                       let current = body["current"] as? Int,

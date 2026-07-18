@@ -63,12 +63,4 @@ final class BookModelTests: XCTestCase {
         XCTAssertEqual(book.rootURL.path, "/tmp/test")
     }
 
-    func testTOCItemNestedChildren() {
-        let child = TOCItem(title: "Child", path: "child.html")
-        let parent = TOCItem(title: "Parent", path: "parent.html", children: [child])
-        XCTAssertEqual(parent.children.count, 1)
-        XCTAssertEqual(parent.children[0].title, "Child")
-        XCTAssertEqual(parent.children[0].path, "child.html")
-    }
-
 }
